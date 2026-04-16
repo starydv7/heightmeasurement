@@ -1,11 +1,19 @@
 import { useMemo, useState } from 'react';
-import { GestureResponderEvent, Image, LayoutChangeEvent, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  GestureResponderEvent,
+  Image,
+  LayoutChangeEvent,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { LabeledInput } from '../components/LabeledInput';
-import { ResultCard } from '../components/ResultCard';
-import { colors } from '../constants/theme';
 import { estimateHeight } from '../services/measurementService';
-import { HeightMeasurementResult } from '../types/measurement';
+import { HeightMeasurementResult, HeightResultSummary } from '../types/measurement';
 import { cmToFeetAndInches } from '../utils/unit';
 
 function toNumber(value: string): number {
@@ -17,6 +25,35 @@ function sanitizeNumberInput(value: string): string {
   const firstDotIndex = cleaned.indexOf('.');
   if (firstDotIndex === -1) return cleaned;
   return cleaned.slice(0, firstDotIndex + 1) + cleaned.slice(firstDotIndex + 1).replace(/\./g, '');
+}
+
+function computeConfidencePercent(params: {
+  personPx: number;
+  referencePx: number;
+  imageDerivedPixels: { person: number; reference: number } | null;
+  hasCapturedImage: boolean;
+  markerKeys: string[];
+}): number {
+  const { personPx, referencePx, imageDerivedPixels, hasCapturedImage, markerKeys } = params;
+  const fullTaps = markerKeys.length >= 4;
+  const matchesTapDerived =
+    imageDerivedPixels != null &&
+    personPx === imageDerivedPixels.person &&
+    referencePx === imageDerivedPixels.reference;
+
+  if (matchesTapDerived && fullTaps && hasCapturedImage) {
+    return 78;
+  }
+  if (imageDerivedPixels != null && fullTaps && hasCapturedImage) {
+    return 58;
+  }
+  if (hasCapturedImage && fullTaps) {
+    return 50;
+  }
+  if (hasCapturedImage) {
+    return 42;
+  }
+  return 32;
 }
 
 const measurementSteps = [
@@ -33,7 +70,40 @@ type MarkerPoint = {
   y: number;
 };
 
-export function HomeScreen() {
+type FieldProps = {
+  label: string;
+  value: string;
+  placeholder: string;
+  unit: string;
+  onChangeText: (value: string) => void;
+};
+
+function MeasureField({ label, value, placeholder, unit, onChangeText }: FieldProps) {
+  return (
+    <View style={styles.fieldWrap}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.fieldInputWrap}>
+        <TextInput
+          value={value}
+          placeholder={placeholder}
+          placeholderTextColor="#64748B"
+          onChangeText={onChangeText}
+          keyboardType="numeric"
+          style={styles.fieldInput}
+        />
+        <View style={styles.unitChip}>
+          <Text style={styles.unitChipText}>{unit}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+type HomeScreenProps = {
+  onResultReady: (result: HeightResultSummary) => void;
+};
+
+export function HomeScreen({ onResultReady }: HomeScreenProps) {
   const [personPixelHeight, setPersonPixelHeight] = useState('');
   const [referencePixelHeight, setReferencePixelHeight] = useState('');
   const [referenceRealHeightCm, setReferenceRealHeightCm] = useState('');
@@ -49,6 +119,7 @@ export function HomeScreen() {
   const [displayedImageHeight, setDisplayedImageHeight] = useState(0);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [markers, setMarkers] = useState<Partial<Record<MeasurementKey, MarkerPoint>>>({});
+  const [imageDerivedPixels, setImageDerivedPixels] = useState<{ person: number; reference: number } | null>(null);
 
   const currentStep = measurementSteps[currentStepIndex];
   const isImageReady = capturedImageWidth > 0 && capturedImageHeight > 0 && displayedImageWidth > 0 && displayedImageHeight > 0;
@@ -82,6 +153,20 @@ export function HomeScreen() {
     setResult(nextResult);
     setEditedHeightCm(String(nextResult.estimatedHeightCm));
     setEditedHeightError(null);
+    onResultReady({
+      estimatedHeightCm: nextResult.estimatedHeightCm,
+      estimatedHeightFeet: nextResult.estimatedHeightFeet,
+      personPixelHeight: personPx,
+      referencePixelHeight: referencePx,
+      referenceRealHeightCm: referenceCm,
+      confidencePercent: computeConfidencePercent({
+        personPx,
+        referencePx,
+        imageDerivedPixels,
+        hasCapturedImage: Boolean(capturedImageUri),
+        markerKeys: Object.keys(markers),
+      }),
+    });
   };
 
   const handleStartCamera = async () => {
@@ -109,6 +194,7 @@ export function HomeScreen() {
     setDisplayedImageHeight(0);
     setMarkers({});
     setCurrentStepIndex(0);
+    setImageDerivedPixels(null);
     setPersonPixelHeight('');
     setReferencePixelHeight('');
     setResult(null);
@@ -156,14 +242,25 @@ export function HomeScreen() {
     if (personTop && personBottom && referenceTop && referenceBottom) {
       const measuredPersonPx = Math.round(Math.abs(personBottom.y - personTop.y));
       const measuredReferencePx = Math.round(Math.abs(referenceBottom.y - referenceTop.y));
+      setImageDerivedPixels({
+        person: measuredPersonPx,
+        reference: measuredReferencePx,
+      });
       setPersonPixelHeight(String(measuredPersonPx));
       setReferencePixelHeight(String(measuredReferencePx));
     }
   };
 
   const handleResetMeasurement = () => {
+    setCapturedImageUri(null);
+    setCapturedImageSize(null);
+    setCapturedImageWidth(0);
+    setCapturedImageHeight(0);
+    setDisplayedImageWidth(0);
+    setDisplayedImageHeight(0);
     setMarkers({});
     setCurrentStepIndex(0);
+    setImageDerivedPixels(null);
     setPersonPixelHeight('');
     setReferencePixelHeight('');
     setResult(null);
@@ -194,277 +291,334 @@ export function HomeScreen() {
     Number.isFinite(editedHeightNumber) && editedHeightNumber > 0 ? cmToFeetAndInches(editedHeightNumber) : '';
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Height Measurement</Text>
-        <Text style={styles.subtitle}>
-          Capture one photo, tap 4 points, then estimate height using a known reference object.
-        </Text>
-      </View>
-
-      <View style={styles.card}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Capture</Text>
-          <Text style={styles.sectionHint}>Keep the person and reference object at the same distance from the camera.</Text>
-        </View>
-
-        <LabeledInput
-          label="Person Pixel Height"
-          value={personPixelHeight}
-          placeholder="e.g. 620"
-          onChangeText={setPersonPixelHeight}
-        />
-        <LabeledInput
-          label="Reference Object Pixel Height"
-          value={referencePixelHeight}
-          placeholder="e.g. 310"
-          onChangeText={setReferencePixelHeight}
-        />
-        <LabeledInput
-          label="Reference Real Height (cm)"
-          value={referenceRealHeightCm}
-          placeholder="e.g. 170"
-          onChangeText={setReferenceRealHeightCm}
-        />
-
-        <Pressable style={[styles.button, styles.secondaryButton]} onPress={handleStartCamera}>
-          <Text style={[styles.buttonText, styles.secondaryButtonText]}>
-            {capturedImageUri ? 'Retake Photo' : 'Start Camera'}
-          </Text>
-        </Pressable>
-        {capturedImageUri ? (
-          <View style={styles.previewBox}>
-            <View style={styles.previewHeaderRow}>
-              <View style={styles.previewHeaderLeft}>
-                <Text style={styles.previewTitle}>Tap points</Text>
-                {capturedImageSize ? <Text style={styles.previewMeta}>{capturedImageSize}</Text> : null}
-              </View>
-              <View style={styles.stepPill}>
-                <Text style={styles.stepPillText}>
-                  Step {Math.min(currentStepIndex + 1, measurementSteps.length)} / {measurementSteps.length}
-                </Text>
-              </View>
+    <LinearGradient colors={['#020817', '#0B1635', '#040A1D']} style={styles.page}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.deviceCard}>
+          <View style={styles.topRow}>
+            <View style={styles.topIcon}>
+              <Text style={styles.topIconText}>{'<'}</Text>
             </View>
-            <Text style={styles.stepText}>
-              {currentStep ? currentStep.label : 'Measurement points captured. You can retake or estimate now.'}
-            </Text>
-            <View style={styles.progressTrack}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: `${Math.round(((currentStepIndex + 1) / measurementSteps.length) * 100)}%` },
-                ]}
-              />
-            </View>
-            <Pressable
-              onPress={handleImagePress}
-              style={[styles.imageTouchArea, !isImageReady && styles.imageTouchAreaDisabled]}
-              disabled={!isImageReady}
-            >
-              <Image
-                source={{ uri: capturedImageUri }}
-                style={[
-                  styles.previewImage,
-                  capturedImageWidth && capturedImageHeight
-                    ? { aspectRatio: capturedImageWidth / capturedImageHeight }
-                    : null,
-                ]}
-                resizeMode="stretch"
-                onLayout={handleImageLayout}
-              />
-              {!isImageReady ? (
-                <View style={styles.imageOverlay}>
-                  <Text style={styles.imageOverlayText}>Preparing image…</Text>
-                </View>
-              ) : null}
-              {Object.entries(markers).map(([key, point]) => {
-                if (
-                  !point ||
-                  !Number.isFinite(point.x) ||
-                  !Number.isFinite(point.y) ||
-                  !displayedImageWidth ||
-                  !displayedImageHeight ||
-                  !capturedImageWidth ||
-                  !capturedImageHeight
-                ) {
-                  return null;
-                }
-
-                const markerLeft = (point.x / capturedImageWidth) * displayedImageWidth - 8;
-                const markerTop = (point.y / capturedImageHeight) * displayedImageHeight - 8;
-
-                return (
-                  <View
-                    key={key}
-                    style={[
-                      styles.marker,
-                      {
-                        left: markerLeft,
-                        top: markerTop,
-                      },
-                    ]}
-                  />
-                );
-              })}
-            </Pressable>
-            <View style={styles.row}>
-              <Pressable style={[styles.button, styles.smallButton]} onPress={handleResetMeasurement}>
-                <Text style={styles.buttonText}>Reset Points</Text>
-              </Pressable>
+            <Text style={styles.topTitle}>Measure Height</Text>
+            <View style={styles.topIcon}>
+              <Text style={styles.topIconText}>?</Text>
             </View>
           </View>
-        ) : null}
 
-        <Pressable
-          style={[styles.button, styles.primaryButton, !isFormFilled && styles.buttonDisabled]}
-          onPress={handleEstimate}
-          disabled={!isFormFilled}
-        >
-          <Text style={styles.buttonText}>Estimate Height</Text>
-        </Pressable>
+          <View style={styles.meterWrap}>
+            <View style={styles.meterOuter}>
+              <View style={styles.meterInner}>
+                <Text style={styles.meterValue}>{result ? result.estimatedHeightCm : '--'}</Text>
+                <Text style={styles.meterUnit}>CM</Text>
+              </View>
+            </View>
+            <Text style={styles.awaitingTitle}>{result ? 'Height Estimated' : 'Awaiting Input'}</Text>
+            <Text style={styles.awaitingHint}>• Keep person + ref at same distance</Text>
+          </View>
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          <View style={styles.statsRow}>
+            <View style={styles.statCard}>
+              <Text style={styles.statLabel}>PERSON PX</Text>
+              <Text style={styles.statValue}>{personPixelHeight || '0'}</Text>
+              <Text style={styles.statSub}>pixels tall</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statLabel}>REF PX</Text>
+              <Text style={styles.statValue}>{referencePixelHeight || '0'}</Text>
+              <Text style={styles.statSub}>pixels tall</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statLabel}>REF REAL</Text>
+              <Text style={styles.statValue}>{referenceRealHeightCm || '0'}</Text>
+              <Text style={styles.statSub}>cm</Text>
+            </View>
+          </View>
 
-        <ResultCard
-          result={result}
-          editedHeightCm={editedHeightCm}
-          onEditedHeightChange={handleEditedHeightChange}
-        />
-        {editedHeightError ? <Text style={styles.errorText}>{editedHeightError}</Text> : null}
-        {finalHeightFeet ? (
-          <Text style={styles.editedMeta}>Edited height in feet/inches: {finalHeightFeet}</Text>
-        ) : null}
-      </View>
-    </ScrollView>
+          <MeasureField
+            label="PERSON PIXEL HEIGHT"
+            value={personPixelHeight}
+            placeholder="e.g. 620"
+            unit="px"
+            onChangeText={setPersonPixelHeight}
+          />
+          <MeasureField
+            label="REFERENCE OBJECT PIXEL HEIGHT"
+            value={referencePixelHeight}
+            placeholder="e.g. 310"
+            unit="px"
+            onChangeText={setReferencePixelHeight}
+          />
+          <MeasureField
+            label="REFERENCE REAL HEIGHT"
+            value={referenceRealHeightCm}
+            placeholder="e.g. 170"
+            unit="cm"
+            onChangeText={setReferenceRealHeightCm}
+          />
+
+          {capturedImageUri ? (
+            <View style={styles.previewBox}>
+              <View style={styles.previewHead}>
+                <Text style={styles.previewLabel}>Tap points on photo</Text>
+                <Text style={styles.previewStep}>
+                  {Math.min(currentStepIndex + 1, measurementSteps.length)}/{measurementSteps.length}
+                </Text>
+              </View>
+              {capturedImageSize ? <Text style={styles.previewSize}>{capturedImageSize}</Text> : null}
+              <Text style={styles.stepText}>
+                {currentStep ? currentStep.label : 'All points captured. You can estimate now.'}
+              </Text>
+              <Pressable
+                onPress={handleImagePress}
+                style={[styles.imageTouchArea, !isImageReady && styles.imageTouchAreaDisabled]}
+                disabled={!isImageReady}
+              >
+                <Image
+                  source={{ uri: capturedImageUri }}
+                  style={[
+                    styles.previewImage,
+                    capturedImageWidth && capturedImageHeight
+                      ? { aspectRatio: capturedImageWidth / capturedImageHeight }
+                      : null,
+                  ]}
+                  resizeMode="stretch"
+                  onLayout={handleImageLayout}
+                />
+                {Object.entries(markers).map(([key, point]) => {
+                  if (
+                    !point ||
+                    !Number.isFinite(point.x) ||
+                    !Number.isFinite(point.y) ||
+                    !displayedImageWidth ||
+                    !displayedImageHeight ||
+                    !capturedImageWidth ||
+                    !capturedImageHeight
+                  ) {
+                    return null;
+                  }
+
+                  const markerLeft = (point.x / capturedImageWidth) * displayedImageWidth - 7;
+                  const markerTop = (point.y / capturedImageHeight) * displayedImageHeight - 7;
+
+                  return <View key={key} style={[styles.marker, { left: markerLeft, top: markerTop }]} />;
+                })}
+              </Pressable>
+            </View>
+          ) : null}
+
+          <View style={styles.actionRow}>
+            <Pressable style={styles.cameraButton} onPress={capturedImageUri ? handleResetMeasurement : handleStartCamera}>
+              <Text style={styles.cameraButtonText}>{capturedImageUri ? 'Reset Points' : 'Camera'}</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.estimateButton, !isFormFilled && styles.buttonDisabled]}
+              onPress={handleEstimate}
+              disabled={!isFormFilled}
+            >
+              <Text style={styles.estimateButtonText}>Estimate Height</Text>
+            </Pressable>
+          </View>
+
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+          {result ? (
+            <View style={styles.editCard}>
+              <Text style={styles.editCardTitle}>Editable Final Height (cm)</Text>
+              <TextInput
+                value={editedHeightCm}
+                onChangeText={handleEditedHeightChange}
+                placeholder="Adjust final height"
+                placeholderTextColor="#64748B"
+                keyboardType="numeric"
+                style={styles.editInput}
+              />
+              {editedHeightError ? <Text style={styles.errorText}>{editedHeightError}</Text> : null}
+              {finalHeightFeet ? <Text style={styles.editedMeta}>{finalHeightFeet}</Text> : null}
+            </View>
+          ) : null}
+        </View>
+      </ScrollView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  page: {
+    flex: 1,
+  },
   content: {
-    padding: 20,
-    paddingTop: 28,
-  },
-  header: {
-    marginBottom: 14,
-  },
-  title: {
-    fontSize: 30,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  subtitle: {
-    marginTop: 8,
-    fontSize: 15,
-    color: colors.textSecondary,
-    lineHeight: 22,
-    marginBottom: 18,
-  },
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: 16,
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 4,
+    paddingTop: 18,
+    paddingBottom: 30,
   },
-  sectionHeader: {
-    marginBottom: 12,
+  deviceCard: {
+    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.24)',
+    padding: 14,
   },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  sectionHint: {
-    marginTop: 4,
-    fontSize: 13,
-    color: colors.textSecondary,
-    lineHeight: 18,
-  },
-  button: {
-    marginTop: 8,
-    backgroundColor: colors.accent,
-    borderRadius: 12,
+  topRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    justifyContent: 'space-between',
   },
-  primaryButton: {
-    marginTop: 10,
+  topIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.25)',
   },
-  secondaryButton: {
-    backgroundColor: '#E2E8F0',
+  topIconText: {
+    color: '#67E8F9',
+    fontSize: 14,
+    fontWeight: '700',
   },
-  secondaryButtonText: {
-    color: '#1E293B',
+  topTitle: {
+    color: '#F8FAFC',
+    fontSize: 25,
+    fontWeight: '800',
   },
-  buttonDisabled: {
-    opacity: 0.6,
+  meterWrap: {
+    marginTop: 16,
+    alignItems: 'center',
   },
-  buttonText: {
-    color: '#fff',
+  meterOuter: {
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    borderWidth: 1.5,
+    borderColor: 'rgba(34, 211, 238, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(8, 47, 73, 0.35)',
+  },
+  meterInner: {
+    width: 138,
+    height: 138,
+    borderRadius: 69,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 211, 238, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  meterValue: {
+    color: '#F8FAFC',
+    fontSize: 32,
+    fontWeight: '900',
+  },
+  meterUnit: {
+    color: '#22D3EE',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  awaitingTitle: {
+    marginTop: 12,
+    color: '#F8FAFC',
+    fontSize: 28,
+    fontWeight: '800',
+  },
+  awaitingHint: {
+    marginTop: 4,
+    color: '#22D3EE',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  statsRow: {
+    marginTop: 14,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  statCard: {
+    flex: 1,
+    padding: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.22)',
+    backgroundColor: 'rgba(30, 41, 59, 0.55)',
+  },
+  statLabel: {
+    color: '#94A3B8',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  statValue: {
+    marginTop: 4,
+    color: '#F8FAFC',
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  statSub: {
+    color: '#64748B',
+    fontSize: 10,
+  },
+  fieldWrap: {
+    marginTop: 12,
+  },
+  fieldLabel: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  fieldInputWrap: {
+    height: 50,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 211, 238, 0.5)',
+    backgroundColor: 'rgba(2, 6, 23, 0.6)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+  fieldInput: {
+    flex: 1,
+    color: '#F8FAFC',
     fontSize: 16,
     fontWeight: '700',
   },
-  errorText: {
-    marginTop: 10,
-    fontSize: 14,
-    color: '#B91C1C',
+  unitChip: {
+    borderRadius: 8,
+    backgroundColor: 'rgba(51, 65, 85, 0.8)',
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+  },
+  unitChipText: {
+    color: '#CBD5E1',
+    fontSize: 11,
+    fontWeight: '700',
   },
   previewBox: {
     marginTop: 12,
-    padding: 10,
+    padding: 9,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: '#F8FAFC',
+    borderColor: 'rgba(148, 163, 184, 0.22)',
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
   },
-  previewHeaderRow: {
+  previewHead: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
   },
-  previewHeaderLeft: {
-    flex: 1,
-  },
-  previewTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  previewMeta: {
+  previewLabel: {
+    color: '#E2E8F0',
     fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-    marginBottom: 8,
+    fontWeight: '700',
   },
-  stepPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#E2E8F0',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-  },
-  stepPillText: {
+  previewStep: {
+    color: '#22D3EE',
     fontSize: 12,
     fontWeight: '800',
-    color: '#1E293B',
   },
-  progressTrack: {
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: '#E2E8F0',
-    overflow: 'hidden',
-    marginBottom: 10,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: colors.accent,
+  previewSize: {
+    marginTop: 4,
+    color: '#64748B',
+    fontSize: 11,
   },
   previewImage: {
     width: '100%',
@@ -476,52 +630,98 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#0F172A',
+    borderColor: 'rgba(34, 211, 238, 0.4)',
+    backgroundColor: '#020617',
   },
   imageTouchAreaDisabled: {
     opacity: 0.96,
   },
-  imageOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.35)',
-  },
-  imageOverlayText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '800',
-  },
   marker: {
     position: 'absolute',
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#EF4444',
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#22D3EE',
     borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderColor: '#082F49',
   },
   stepText: {
-    fontSize: 13,
-    color: colors.textPrimary,
-    marginBottom: 10,
+    fontSize: 12,
+    color: '#CBD5E1',
+    marginTop: 4,
+    marginBottom: 8,
     fontWeight: '600',
   },
-  row: {
+  actionRow: {
+    marginTop: 12,
     flexDirection: 'row',
     gap: 10,
   },
-  smallButton: {
+  cameraButton: {
     flex: 1,
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(30, 41, 59, 0.7)',
+  },
+  cameraButtonText: {
+    color: '#E2E8F0',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  estimateButton: {
+    flex: 1.7,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#22D3EE',
+  },
+  estimateButtonText: {
+    color: '#042F2E',
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  buttonDisabled: {
+    opacity: 0.55,
+  },
+  errorText: {
+    marginTop: 10,
+    fontSize: 13,
+    color: '#FCA5A5',
+  },
+  editCard: {
+    marginTop: 12,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.2)',
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+  },
+  editCardTitle: {
+    color: '#E2E8F0',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 7,
+  },
+  editInput: {
+    height: 46,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 211, 238, 0.5)',
+    backgroundColor: 'rgba(2, 6, 23, 0.6)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    color: '#F8FAFC',
+    fontSize: 16,
+    fontWeight: '700',
   },
   editedMeta: {
-    marginTop: 10,
-    fontSize: 14,
-    color: colors.textSecondary,
+    marginTop: 8,
+    fontSize: 13,
+    color: '#67E8F9',
+    fontWeight: '700',
   },
 });
