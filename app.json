@@ -1,9 +1,10 @@
 {
   "expo": {
-    "name": "heightmeasurement",
+    "name": "Height Measurement",
     "slug": "heightmeasurement",
     "version": "1.0.0",
     "orientation": "portrait",
+    "scheme": "heightmeasurement",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
@@ -13,18 +14,36 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.example.heightmeasurement"
     },
     "android": {
+      "package": "com.example.heightmeasurement",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow Height Measurement to use your camera to capture a measurement photo."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e2b0c757-eaa5-4a76-976b-63f3643191e6"
+      }
     }
   }
 }
