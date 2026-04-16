@@ -1,12 +1,14 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors } from '../constants/theme';
 import { HeightMeasurementResult } from '../types/measurement';
 
 type ResultCardProps = {
   result: HeightMeasurementResult | null;
+  editedHeightCm: string;
+  onEditedHeightChange: (value: string) => void;
 };
 
-export function ResultCard({ result }: ResultCardProps) {
+export function ResultCard({ result, editedHeightCm, onEditedHeightChange }: ResultCardProps) {
   if (!result) {
     return (
       <View style={[styles.card, styles.warning]}>
@@ -20,6 +22,16 @@ export function ResultCard({ result }: ResultCardProps) {
       <Text style={styles.resultTitle}>Estimated Height</Text>
       <Text style={styles.resultMetric}>{result.estimatedHeightCm} cm</Text>
       <Text style={styles.resultImperial}>{result.estimatedHeightFeet}</Text>
+      <View style={styles.editSection}>
+        <Text style={styles.editLabel}>Editable Final Height (cm)</Text>
+        <TextInput
+          style={styles.editInput}
+          keyboardType="numeric"
+          value={editedHeightCm}
+          onChangeText={onEditedHeightChange}
+          placeholder="Adjust final height"
+        />
+      </View>
     </View>
   );
 }
@@ -58,5 +70,24 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 18,
     color: '#166534',
+  },
+  editSection: {
+    marginTop: 14,
+  },
+  editLabel: {
+    fontSize: 13,
+    color: colors.successText,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  editInput: {
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    borderRadius: 12,
+    backgroundColor: '#F0FDF4',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: '#14532D',
   },
 });
