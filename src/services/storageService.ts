@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { HeightResultSummary } from '../types/measurement';
+import { HeightResultSummary, UserProfile } from '../types/measurement';
 
 const HEIGHT_HISTORY_KEY = 'heightmeasurement:history';
+const PROFILE_KEY = 'heightmeasurement:profile';
 
 export type SavedHeightRecord = HeightResultSummary & {
   id: string;
@@ -26,4 +27,21 @@ export async function saveHeightResult(result: HeightResultSummary): Promise<Sav
 export async function getSavedHeightResults(): Promise<SavedHeightRecord[]> {
   const existing = await AsyncStorage.getItem(HEIGHT_HISTORY_KEY);
   return existing ? (JSON.parse(existing) as SavedHeightRecord[]) : [];
+}
+
+export async function saveUserProfile(profile: UserProfile): Promise<void> {
+  await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+}
+
+export async function getUserProfile(): Promise<UserProfile> {
+  const existing = await AsyncStorage.getItem(PROFILE_KEY);
+  if (!existing) {
+    return {
+      fullName: '',
+      age: '',
+      address: '',
+    };
+  }
+
+  return JSON.parse(existing) as UserProfile;
 }

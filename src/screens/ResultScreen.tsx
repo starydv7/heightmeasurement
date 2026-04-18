@@ -7,9 +7,10 @@ import { HeightResultSummary } from '../types/measurement';
 type ResultScreenProps = {
   result: HeightResultSummary;
   onBack: () => void;
+  onSaved: () => void;
 };
 
-export function ResultScreen({ result, onBack }: ResultScreenProps) {
+export function ResultScreen({ result, onBack, onSaved }: ResultScreenProps) {
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSaveResult = async () => {
@@ -17,6 +18,7 @@ export function ResultScreen({ result, onBack }: ResultScreenProps) {
       setIsSaving(true);
       await saveHeightResult(result);
       Alert.alert('Saved', 'Result saved locally on this device.');
+      onSaved();
     } catch {
       Alert.alert('Save failed', 'Could not save result. Please try again.');
     } finally {

@@ -18,3 +18,9 @@ export type HeightResultSummary = {
   /** Estimated confidence (0–100) from how pixel values were obtained, not physical measurement accuracy. */
   confidencePercent: number;
 };
+
+export type UserProfile = {
+  fullName: string;
+  age: string;
+  address: string;
+};
