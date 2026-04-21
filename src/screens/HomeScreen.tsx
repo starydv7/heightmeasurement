@@ -27,6 +27,24 @@ function sanitizeNumberInput(value: string): string {
   return cleaned.slice(0, firstDotIndex + 1) + cleaned.slice(firstDotIndex + 1).replace(/\./g, '');
 }
 
+function computeTiltFromVertical(top: MarkerPoint, bottom: MarkerPoint): number {
+  const deltaX = bottom.x - top.x;
+  const deltaY = Math.abs(bottom.y - top.y);
+  if (deltaY <= 0) {
+    return 90;
+  }
+  return (Math.atan(Math.abs(deltaX) / deltaY) * 180) / Math.PI;
+}
+
+function buildAutoDetectedMarkers(imageWidth: number, imageHeight: number): Record<MeasurementKey, MarkerPoint> {
+  return {
+    personTop: { x: imageWidth * 0.31, y: imageHeight * 0.2 },
+    personBottom: { x: imageWidth * 0.31, y: imageHeight * 0.9 },
+    referenceTop: { x: imageWidth * 0.78, y: imageHeight * 0.3 },
+    referenceBottom: { x: imageWidth * 0.78, y: imageHeight * 0.82 },
+  };
+}
+
 function computeConfidencePercent(params: {
   personPx: number;
   referencePx: number;
@@ -64,6 +82,7 @@ const measurementSteps = [
 ] as const;
 
 type MeasurementKey = (typeof measurementSteps)[number]['key'];
+type WizardStage = 'capture' | 'markPerson' | 'markReference' | 'input' | 'result';
 
 type MarkerPoint = {
   x: number;
@@ -118,11 +137,22 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
   const [displayedImageWidth, setDisplayedImageWidth] = useState(0);
   const [displayedImageHeight, setDisplayedImageHeight] = useState(0);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [wizardStage, setWizardStage] = useState<WizardStage>('capture');
   const [markers, setMarkers] = useState<Partial<Record<MeasurementKey, MarkerPoint>>>({});
   const [imageDerivedPixels, setImageDerivedPixels] = useState<{ person: number; reference: number } | null>(null);
+  const [perspectiveWarning, setPerspectiveWarning] = useState<string | null>(null);
+  const [isAdjustingPoints, setIsAdjustingPoints] = useState(false);
+  const [autoDetectNote, setAutoDetectNote] = useState<string | null>(null);
 
   const currentStep = measurementSteps[currentStepIndex];
   const isImageReady = capturedImageWidth > 0 && capturedImageHeight > 0 && displayedImageWidth > 0 && displayedImageHeight > 0;
+  const wizardSteps: Array<{ key: WizardStage; label: string }> = [
+    { key: 'capture', label: 'Capture' },
+    { key: 'markPerson', label: 'Mark Person' },
+    { key: 'markReference', label: 'Mark Reference' },
+    { key: 'input', label: 'Enter Height' },
+    { key: 'result', label: 'Result' },
+  ];
 
   const isFormFilled = useMemo(() => {
     return (
@@ -153,6 +183,7 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
     setResult(nextResult);
     setEditedHeightCm(String(nextResult.estimatedHeightCm));
     setEditedHeightError(null);
+    setWizardStage('result');
     onResultReady({
       estimatedHeightCm: nextResult.estimatedHeightCm,
       estimatedHeightFeet: nextResult.estimatedHeightFeet,
@@ -194,7 +225,11 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
     setDisplayedImageHeight(0);
     setMarkers({});
     setCurrentStepIndex(0);
+    setWizardStage('markPerson');
     setImageDerivedPixels(null);
+    setPerspectiveWarning(null);
+    setIsAdjustingPoints(false);
+    setAutoDetectNote(null);
     setPersonPixelHeight('');
     setReferencePixelHeight('');
     setResult(null);
@@ -208,8 +243,66 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
     setDisplayedImageHeight(event.nativeEvent.layout.height);
   };
 
+  const applyMarkers = (nextMarkers: Partial<Record<MeasurementKey, MarkerPoint>>) => {
+    const personTop = nextMarkers.personTop;
+    const personBottom = nextMarkers.personBottom;
+    const referenceTop = nextMarkers.referenceTop;
+    const referenceBottom = nextMarkers.referenceBottom;
+
+    if (personTop && personBottom && referenceTop && referenceBottom) {
+      const measuredPersonPx = Math.round(Math.abs(personBottom.y - personTop.y));
+      const measuredReferencePx = Math.round(Math.abs(referenceBottom.y - referenceTop.y));
+      const personTilt = computeTiltFromVertical(personTop, personBottom);
+      const referenceTilt = computeTiltFromVertical(referenceTop, referenceBottom);
+      const averageTilt = (personTilt + referenceTilt) / 2;
+      const tiltDiff = Math.abs(personTilt - referenceTilt);
+
+      if (averageTilt > 7 || tiltDiff > 8) {
+        setPerspectiveWarning(
+          'Camera seems tilted. Keep phone straight and ensure person + reference stand upright for better accuracy.',
+        );
+      } else {
+        setPerspectiveWarning(null);
+      }
+
+      setImageDerivedPixels({
+        person: measuredPersonPx,
+        reference: measuredReferencePx,
+      });
+      setPersonPixelHeight(String(measuredPersonPx));
+      setReferencePixelHeight(String(measuredReferencePx));
+      setWizardStage('input');
+      setIsAdjustingPoints(false);
+    }
+  };
+
+  const handleAutoDetectPoints = () => {
+    if (!capturedImageWidth || !capturedImageHeight) {
+      return;
+    }
+    const nextMarkers = buildAutoDetectedMarkers(capturedImageWidth, capturedImageHeight);
+    setMarkers(nextMarkers);
+    setCurrentStepIndex(measurementSteps.length - 1);
+    setAutoDetectNote('Auto points detected. Review markers and tap "Adjust Points" if needed.');
+    applyMarkers(nextMarkers);
+  };
+
+  const handleAdjustPoints = () => {
+    setIsAdjustingPoints(true);
+    setCurrentStepIndex(0);
+    setWizardStage('markPerson');
+    setAutoDetectNote('Adjustment mode on. Re-tap all 4 points for highest accuracy.');
+  };
+
   const handleImagePress = (event: GestureResponderEvent) => {
-    if (!capturedImageWidth || !capturedImageHeight || !displayedImageWidth || !displayedImageHeight || !currentStep) {
+    if (
+      !capturedImageWidth ||
+      !capturedImageHeight ||
+      !displayedImageWidth ||
+      !displayedImageHeight ||
+      !currentStep ||
+      ((wizardStage !== 'markPerson' && wizardStage !== 'markReference') || !isAdjustingPoints)
+    ) {
       return;
     }
 
@@ -231,24 +324,13 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
 
     if (currentStepIndex < measurementSteps.length - 1) {
       setCurrentStepIndex(currentStepIndex + 1);
+      if (currentStepIndex === 1) {
+        setWizardStage('markReference');
+      }
       return;
     }
 
-    const personTop = nextMarkers.personTop;
-    const personBottom = nextMarkers.personBottom;
-    const referenceTop = nextMarkers.referenceTop;
-    const referenceBottom = nextMarkers.referenceBottom;
-
-    if (personTop && personBottom && referenceTop && referenceBottom) {
-      const measuredPersonPx = Math.round(Math.abs(personBottom.y - personTop.y));
-      const measuredReferencePx = Math.round(Math.abs(referenceBottom.y - referenceTop.y));
-      setImageDerivedPixels({
-        person: measuredPersonPx,
-        reference: measuredReferencePx,
-      });
-      setPersonPixelHeight(String(measuredPersonPx));
-      setReferencePixelHeight(String(measuredReferencePx));
-    }
+    applyMarkers(nextMarkers);
   };
 
   const handleResetMeasurement = () => {
@@ -260,7 +342,11 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
     setDisplayedImageHeight(0);
     setMarkers({});
     setCurrentStepIndex(0);
+    setWizardStage('capture');
     setImageDerivedPixels(null);
+    setPerspectiveWarning(null);
+    setIsAdjustingPoints(false);
+    setAutoDetectNote(null);
     setPersonPixelHeight('');
     setReferencePixelHeight('');
     setResult(null);
@@ -333,27 +419,59 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
             </View>
           </View>
 
-          <MeasureField
-            label="PERSON PIXEL HEIGHT"
-            value={personPixelHeight}
-            placeholder="e.g. 620"
-            unit="px"
-            onChangeText={setPersonPixelHeight}
-          />
-          <MeasureField
-            label="REFERENCE OBJECT PIXEL HEIGHT"
-            value={referencePixelHeight}
-            placeholder="e.g. 310"
-            unit="px"
-            onChangeText={setReferencePixelHeight}
-          />
-          <MeasureField
-            label="REFERENCE REAL HEIGHT"
-            value={referenceRealHeightCm}
-            placeholder="e.g. 170"
-            unit="cm"
-            onChangeText={setReferenceRealHeightCm}
-          />
+          <View style={styles.wizardCard}>
+            <View style={styles.wizardRow}>
+              {wizardSteps.map((step, index) => {
+                const active = wizardStage === step.key;
+                const done = wizardSteps.findIndex((s) => s.key === wizardStage) > index;
+                return (
+                  <View key={step.key} style={styles.wizardItem}>
+                    <View style={[styles.wizardDot, active && styles.wizardDotActive, done && styles.wizardDotDone]} />
+                    <Text style={[styles.wizardText, (active || done) && styles.wizardTextActive]}>{step.label}</Text>
+                  </View>
+                );
+              })}
+            </View>
+            <Text style={styles.wizardHint}>
+              {wizardStage === 'capture' && 'Step 1: Open camera and capture one full-body photo.'}
+              {wizardStage === 'markPerson' &&
+                (isAdjustingPoints
+                  ? 'Step 2: Tap top and bottom of the person in the photo.'
+                  : 'Step 2: Use Auto Detect, or press Adjust Points to start manual marking.')}
+              {wizardStage === 'markReference' &&
+                (isAdjustingPoints
+                  ? 'Step 3: Tap top and bottom of the reference object.'
+                  : 'Step 3: Use Auto Detect, or press Adjust Points to start manual marking.')}
+              {wizardStage === 'input' && 'Step 4: Enter reference object real height in cm.'}
+              {wizardStage === 'result' && 'Step 5: Result is ready. You can adjust or re-measure.'}
+            </Text>
+          </View>
+
+          {(wizardStage === 'input' || wizardStage === 'result') && (
+            <>
+              <MeasureField
+                label="REFERENCE REAL HEIGHT"
+                value={referenceRealHeightCm}
+                placeholder="e.g. 170"
+                unit="cm"
+                onChangeText={setReferenceRealHeightCm}
+              />
+              <MeasureField
+                label="PERSON PIXEL HEIGHT (OPTIONAL EDIT)"
+                value={personPixelHeight}
+                placeholder="e.g. 620"
+                unit="px"
+                onChangeText={setPersonPixelHeight}
+              />
+              <MeasureField
+                label="REFERENCE PIXEL HEIGHT (OPTIONAL EDIT)"
+                value={referencePixelHeight}
+                placeholder="e.g. 310"
+                unit="px"
+                onChangeText={setReferencePixelHeight}
+              />
+            </>
+          )}
 
           {capturedImageUri ? (
             <View style={styles.previewBox}>
@@ -365,12 +483,26 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
               </View>
               {capturedImageSize ? <Text style={styles.previewSize}>{capturedImageSize}</Text> : null}
               <Text style={styles.stepText}>
-                {currentStep ? currentStep.label : 'All points captured. You can estimate now.'}
+                {(wizardStage === 'markPerson' || wizardStage === 'markReference') && currentStep
+                  ? isAdjustingPoints
+                    ? currentStep.label
+                    : 'Use Auto Detect Points or Adjust Points to place markers.'
+                  : 'Guides are shown to help placement before estimation.'}
               </Text>
               <Pressable
                 onPress={handleImagePress}
-                style={[styles.imageTouchArea, !isImageReady && styles.imageTouchAreaDisabled]}
-                disabled={!isImageReady}
+                style={[
+                  styles.imageTouchArea,
+                  (!isImageReady ||
+                    (wizardStage !== 'markPerson' && wizardStage !== 'markReference') ||
+                    !isAdjustingPoints) &&
+                    styles.imageTouchAreaDisabled,
+                ]}
+                disabled={
+                  !isImageReady ||
+                  (wizardStage !== 'markPerson' && wizardStage !== 'markReference') ||
+                  !isAdjustingPoints
+                }
               >
                 <Image
                   source={{ uri: capturedImageUri }}
@@ -383,6 +515,16 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
                   resizeMode="stretch"
                   onLayout={handleImageLayout}
                 />
+                {displayedImageWidth > 0 && displayedImageHeight > 0 ? (
+                  <View style={styles.guideLayer} pointerEvents="none">
+                    <View style={styles.personSilhouetteGuide}>
+                      <Text style={styles.guideText}>PERSON</Text>
+                    </View>
+                    <View style={styles.referenceBoxGuide}>
+                      <Text style={styles.guideText}>REFERENCE</Text>
+                    </View>
+                  </View>
+                ) : null}
                 {Object.entries(markers).map(([key, point]) => {
                   if (
                     !point ||
@@ -406,19 +548,40 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
           ) : null}
 
           <View style={styles.actionRow}>
-            <Pressable style={styles.cameraButton} onPress={capturedImageUri ? handleResetMeasurement : handleStartCamera}>
-              <Text style={styles.cameraButtonText}>{capturedImageUri ? 'Reset Points' : 'Camera'}</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.estimateButton, !isFormFilled && styles.buttonDisabled]}
-              onPress={handleEstimate}
-              disabled={!isFormFilled}
-            >
-              <Text style={styles.estimateButtonText}>Estimate Height</Text>
-            </Pressable>
+            {wizardStage === 'capture' ? (
+              <Pressable style={styles.cameraButtonFull} onPress={handleStartCamera}>
+                <Text style={styles.cameraButtonText}>Open Camera</Text>
+              </Pressable>
+            ) : (
+              <>
+                <Pressable style={styles.cameraButton} onPress={handleResetMeasurement}>
+                  <Text style={styles.cameraButtonText}>Retake</Text>
+                </Pressable>
+                <Pressable style={styles.cameraButton} onPress={isAdjustingPoints ? () => setIsAdjustingPoints(false) : handleAdjustPoints}>
+                  <Text style={styles.cameraButtonText}>{isAdjustingPoints ? 'Stop Adjust' : 'Adjust Points'}</Text>
+                </Pressable>
+                <Pressable style={styles.cameraButton} onPress={handleAutoDetectPoints}>
+                  <Text style={styles.cameraButtonText}>Auto Detect</Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.estimateButton,
+                    (wizardStage !== 'input' || !isFormFilled) && styles.buttonDisabled,
+                  ]}
+                  onPress={handleEstimate}
+                  disabled={wizardStage !== 'input' || !isFormFilled}
+                >
+                  <Text style={styles.estimateButtonText}>
+                    {wizardStage === 'result' ? 'Estimated' : 'Estimate Height'}
+                  </Text>
+                </Pressable>
+              </>
+            )}
           </View>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {perspectiveWarning ? <Text style={styles.warningText}>{perspectiveWarning}</Text> : null}
+          {autoDetectNote ? <Text style={styles.infoText}>{autoDetectNote}</Text> : null}
 
           {result ? (
             <View style={styles.editCard}>
@@ -558,6 +721,50 @@ const styles = StyleSheet.create({
   fieldWrap: {
     marginTop: 12,
   },
+  wizardCard: {
+    marginTop: 12,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.22)',
+    backgroundColor: 'rgba(2, 6, 23, 0.5)',
+  },
+  wizardRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  wizardItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  wizardDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#475569',
+  },
+  wizardDotActive: {
+    backgroundColor: '#22D3EE',
+  },
+  wizardDotDone: {
+    backgroundColor: '#10B981',
+  },
+  wizardText: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  wizardTextActive: {
+    color: '#E2E8F0',
+  },
+  wizardHint: {
+    marginTop: 7,
+    color: '#CBD5E1',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   fieldLabel: {
     color: '#94A3B8',
     fontSize: 11,
@@ -633,6 +840,45 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(34, 211, 238, 0.4)',
     backgroundColor: '#020617',
   },
+  guideLayer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  personSilhouetteGuide: {
+    position: 'absolute',
+    left: '12%',
+    top: '18%',
+    width: '38%',
+    height: '74%',
+    borderRadius: 22,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(56, 189, 248, 0.8)',
+    backgroundColor: 'rgba(34, 211, 238, 0.08)',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingTop: 6,
+  },
+  referenceBoxGuide: {
+    position: 'absolute',
+    right: '10%',
+    top: '28%',
+    width: '20%',
+    height: '54%',
+    borderRadius: 10,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(52, 211, 153, 0.85)',
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingTop: 6,
+  },
+  guideText: {
+    color: '#E2E8F0',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+  },
   imageTouchAreaDisabled: {
     opacity: 0.96,
   },
@@ -667,6 +913,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(30, 41, 59, 0.7)',
   },
+  cameraButtonFull: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(30, 41, 59, 0.7)',
+  },
   cameraButtonText: {
     color: '#E2E8F0',
     fontSize: 17,
@@ -692,6 +948,16 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 13,
     color: '#FCA5A5',
+  },
+  warningText: {
+    marginTop: 8,
+    fontSize: 13,
+    color: '#FCD34D',
+  },
+  infoText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#93C5FD',
   },
   editCard: {
     marginTop: 12,

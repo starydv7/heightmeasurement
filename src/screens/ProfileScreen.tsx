@@ -60,19 +60,18 @@ export function ProfileScreen({ refreshKey }: ProfileScreenProps) {
               {isEditing ? 'Update your personal details for saved records.' : 'Tap Edit to change your details.'}
             </Text>
           </View>
+          {!isEditing ? (
+            <Pressable style={styles.editBtn} onPress={() => setIsEditing(true)}>
+              <Text style={styles.editBtnText}>Edit</Text>
+            </Pressable>
+          ) : null}
         </View>
 
-        <View style={styles.card}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Your Details</Text>
-            {!isEditing ? (
-              <Pressable style={styles.editBtn} onPress={() => setIsEditing(true)}>
-                <Text style={styles.editBtnText}>Edit</Text>
-              </Pressable>
-            ) : null}
-          </View>
-
-          {isEditing ? (
+        {isEditing ? (
+          <View style={styles.card}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Your Details</Text>
+            </View>
             <>
               <Text style={styles.label}>Full Name</Text>
               <TextInput
@@ -107,23 +106,8 @@ export function ProfileScreen({ refreshKey }: ProfileScreenProps) {
                 <Text style={styles.saveBtnText}>{isSaving ? 'Saving...' : 'Save Profile'}</Text>
               </Pressable>
             </>
-          ) : (
-            <View style={styles.summaryBox}>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Full Name</Text>
-                <Text style={styles.summaryValue}>{profile.fullName.trim() || '—'}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Age</Text>
-                <Text style={styles.summaryValue}>{profile.age.trim() || '—'}</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Address</Text>
-                <Text style={styles.summaryValue}>{profile.address.trim() || '—'}</Text>
-              </View>
-            </View>
-          )}
-        </View>
+          </View>
+        ) : null}
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>History</Text>
@@ -223,28 +207,6 @@ const styles = StyleSheet.create({
     color: '#67E8F9',
     fontSize: 14,
     fontWeight: '800',
-  },
-  summaryBox: {
-    marginTop: 4,
-    gap: 12,
-  },
-  summaryRow: {
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(148,163,184,0.15)',
-    paddingBottom: 10,
-  },
-  summaryLabel: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  summaryValue: {
-    color: '#F8FAFC',
-    fontSize: 16,
-    fontWeight: '600',
   },
   label: {
     color: '#CBD5E1',
