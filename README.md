@@ -120,7 +120,7 @@ This project aims to evolve into a Child Growth Intelligence System that can:
 
 Developed with inspiration and guidance from:
 
-- Dr. Rakesh Lodha  
+- Dr. Rakesh Lodha (AIIMS-Delhi)-(Child and Mother) 
 - Pediatric Department, AIIMS (All India Institute of Medical Sciences)  
 
 ---
