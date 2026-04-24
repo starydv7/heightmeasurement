@@ -37,17 +37,19 @@ export function ResultScreen({ result, onBack, onSaved }: ResultScreenProps) {
   };
 
   return (
-    <LinearGradient colors={['#020817', '#0B1635', '#040A1D']} style={styles.page}>
+    <LinearGradient colors={['#F7FAFF', '#EEF4FF']} style={styles.page}>
       <View style={styles.content}>
-        <View style={styles.topRow}>
-          <Pressable style={styles.iconBtn} onPress={onBack}>
-            <Text style={styles.iconText}>{'<'}</Text>
-          </Pressable>
-          <Text style={styles.title}>Result</Text>
-          <Pressable style={styles.iconBtn} onPress={handleShareResult}>
-            <Text style={styles.iconText}>↗</Text>
-          </Pressable>
-        </View>
+        <LinearGradient colors={['#6D63FF', '#20C7F3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.headerBlock}>
+          <View style={styles.topRow}>
+            <Pressable style={styles.iconBtn} onPress={onBack}>
+              <Text style={styles.iconText}>{'<'}</Text>
+            </Pressable>
+            <Text style={styles.title}>Result</Text>
+            <Pressable style={styles.iconBtn} onPress={handleShareResult}>
+              <Text style={styles.iconText}>↗</Text>
+            </Pressable>
+          </View>
+        </LinearGradient>
 
         <View style={styles.donePill}>
           <Text style={styles.donePillText}>MEASUREMENT COMPLETE</Text>
@@ -99,19 +101,20 @@ export function ResultScreen({ result, onBack, onSaved }: ResultScreenProps) {
 const styles = StyleSheet.create({
   page: { flex: 1 },
   content: { flex: 1, padding: 16, paddingTop: 24 },
+  headerBlock: { borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10 },
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   iconBtn: {
     width: 34,
     height: 34,
     borderRadius: 11,
     borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.3)',
-    backgroundColor: 'rgba(30,41,59,0.65)',
+    borderColor: 'rgba(255,255,255,0.55)',
+    backgroundColor: 'rgba(255,255,255,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconText: { color: '#67E8F9', fontWeight: '800' },
-  title: { color: '#F8FAFC', fontSize: 25, fontWeight: '800' },
+  iconText: { color: '#FFFFFF', fontWeight: '800' },
+  title: { color: '#FFFFFF', fontSize: 25, fontWeight: '800' },
   donePill: {
     marginTop: 18,
     alignSelf: 'center',
@@ -121,42 +124,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  donePillText: { color: '#22D3EE', fontSize: 11, fontWeight: '800' },
+  donePillText: { color: '#2D9FD6', fontSize: 11, fontWeight: '800' },
   resultLine: { marginTop: 18, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center' },
-  resultValue: { color: '#F8FAFC', fontSize: 80, fontWeight: '900', lineHeight: 86 },
-  resultUnit: { color: '#22D3EE', fontSize: 40, fontWeight: '800' },
-  resultFeet: { textAlign: 'center', color: '#93C5FD', fontSize: 24, marginTop: 4, fontWeight: '700' },
+  resultValue: { color: '#1F2A44', fontSize: 80, fontWeight: '900', lineHeight: 86 },
+  resultUnit: { color: '#35BDF4', fontSize: 40, fontWeight: '800' },
+  resultFeet: { textAlign: 'center', color: '#2D9FD6', fontSize: 24, marginTop: 4, fontWeight: '700' },
   compareCard: {
     marginTop: 22,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.25)',
-    backgroundColor: 'rgba(30,41,59,0.5)',
+    borderColor: 'rgba(125,145,191,0.25)',
+    backgroundColor: '#FFFFFF',
     padding: 14,
   },
-  youTag: { alignSelf: 'center', color: '#22D3EE', fontWeight: '800', marginBottom: 8 },
+  youTag: { alignSelf: 'center', color: '#35BDF4', fontWeight: '800', marginBottom: 8 },
   bars: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 86 },
   bar: { width: 62, borderRadius: 8 },
-  barAvg: { height: 45, backgroundColor: '#334155' },
-  barYou: { height: 72, backgroundColor: '#22D3EE' },
-  barRef: { height: 58, backgroundColor: '#3730A3' },
+  barAvg: { height: 45, backgroundColor: '#C8D2E8' },
+  barYou: { height: 72, backgroundColor: '#35BDF4' },
+  barRef: { height: 58, backgroundColor: '#6D63FF' },
   barLabels: { marginTop: 8, flexDirection: 'row', justifyContent: 'space-between' },
-  barLabel: { color: '#93C5FD', fontSize: 11, fontWeight: '700' },
+  barLabel: { color: '#4A5A7A', fontSize: 11, fontWeight: '700' },
   metricsRow: { marginTop: 14, flexDirection: 'row', gap: 8 },
   metricCard: {
     flex: 1,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.25)',
-    backgroundColor: 'rgba(30,41,59,0.5)',
+    borderColor: 'rgba(125,145,191,0.25)',
+    backgroundColor: '#FFFFFF',
     padding: 10,
   },
-  metricValue: { color: '#F8FAFC', fontSize: 24, fontWeight: '900' },
-  metricLabel: { color: '#94A3B8', fontSize: 10, fontWeight: '700' },
+  metricValue: { color: '#1F2A44', fontSize: 24, fontWeight: '900' },
+  metricLabel: { color: '#7C89A6', fontSize: 10, fontWeight: '700' },
   saveButton: {
     marginTop: 'auto',
     marginBottom: 24,
-    backgroundColor: '#22D3EE',
+    backgroundColor: '#35BDF4',
     borderRadius: 16,
     alignItems: 'center',
     paddingVertical: 15,
@@ -164,5 +167,5 @@ const styles = StyleSheet.create({
   saveButtonDisabled: {
     opacity: 0.7,
   },
-  saveButtonText: { color: '#042F2E', fontSize: 21, fontWeight: '800' },
+  saveButtonText: { color: '#FFFFFF', fontSize: 21, fontWeight: '800' },
 });

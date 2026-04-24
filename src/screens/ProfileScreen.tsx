@@ -45,10 +45,12 @@ export function ProfileScreen({ refreshKey }: ProfileScreenProps) {
   };
 
   return (
-    <LinearGradient colors={['#020817', '#0B1635', '#040A1D']} style={styles.page}>
+    <LinearGradient colors={['#F7FAFF', '#EEF4FF']} style={styles.page}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Profile</Text>
-        <Text style={styles.subtitle}>Manage your details and personalize your measurement workspace.</Text>
+        <LinearGradient colors={['#6D63FF', '#20C7F3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.headerBlock}>
+          <Text style={styles.title}>Profile</Text>
+          <Text style={styles.subtitle}>Manage your details and personalize your measurement workspace.</Text>
+        </LinearGradient>
 
         <View style={styles.heroCard}>
           <View style={styles.avatar}>
@@ -126,23 +128,28 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 90,
   },
+  headerBlock: {
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
   title: {
-    color: '#F8FAFC',
+    color: '#FFFFFF',
     fontSize: 30,
     fontWeight: '800',
   },
   subtitle: {
     marginTop: 4,
     marginBottom: 12,
-    color: '#94A3B8',
+    color: '#EAF1FF',
     fontSize: 14,
   },
   heroCard: {
     marginTop: 2,
     marginBottom: 2,
-    backgroundColor: 'rgba(15, 23, 42, 0.88)',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.25)',
+    borderColor: 'rgba(125,145,191,0.25)',
     borderRadius: 14,
     padding: 12,
     flexDirection: 'row',
@@ -158,7 +165,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarText: {
-    color: '#042F2E',
+    color: '#FFFFFF',
     fontSize: 20,
     fontWeight: '900',
   },
@@ -166,20 +173,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   heroName: {
-    color: '#F8FAFC',
+    color: '#1F2A44',
     fontSize: 17,
     fontWeight: '800',
   },
   heroSub: {
     marginTop: 2,
-    color: '#94A3B8',
+    color: '#7C89A6',
     fontSize: 12,
   },
   card: {
     marginTop: 10,
-    backgroundColor: 'rgba(15, 23, 42, 0.88)',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.25)',
+    borderColor: 'rgba(125,145,191,0.25)',
     borderRadius: 14,
     padding: 12,
   },
@@ -190,7 +197,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sectionTitle: {
-    color: '#22D3EE',
+    color: '#4A5A7A',
     fontSize: 15,
     fontWeight: '800',
     marginBottom: 0,
@@ -200,16 +207,16 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(34,211,238,0.6)',
-    backgroundColor: 'rgba(34,211,238,0.15)',
+    borderColor: 'rgba(53,189,244,0.6)',
+    backgroundColor: 'rgba(53,189,244,0.12)',
   },
   editBtnText: {
-    color: '#67E8F9',
+    color: '#2D9FD6',
     fontSize: 14,
     fontWeight: '800',
   },
   label: {
-    color: '#CBD5E1',
+    color: '#4A5A7A',
     fontSize: 12,
     marginTop: 6,
     marginBottom: 4,
@@ -217,10 +224,10 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: 'rgba(34,211,238,0.35)',
-    backgroundColor: 'rgba(2, 6, 23, 0.65)',
+    borderColor: 'rgba(53,189,244,0.35)',
+    backgroundColor: '#F2F5FD',
     borderRadius: 10,
-    color: '#F8FAFC',
+    color: '#1F2A44',
     paddingHorizontal: 12,
     paddingVertical: 11,
     fontSize: 15,
@@ -237,7 +244,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   saveBtnText: {
-    color: '#042F2E',
+    color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 16,
   },
@@ -245,7 +252,7 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
   emptyText: {
-    color: '#94A3B8',
+    color: '#7C89A6',
     fontSize: 13,
   },
 });

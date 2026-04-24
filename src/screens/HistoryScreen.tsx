@@ -46,10 +46,12 @@ export function HistoryScreen({ refreshKey }: HistoryScreenProps) {
     });
 
   return (
-    <LinearGradient colors={['#020817', '#0B1635', '#040A1D']} style={styles.page}>
+    <LinearGradient colors={['#F7FAFF', '#EEF4FF']} style={styles.page}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>History</Text>
-        <Text style={styles.subtitle}>Your saved height measurements are listed here.</Text>
+        <LinearGradient colors={['#6D63FF', '#20C7F3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.headerBlock}>
+          <Text style={styles.title}>History</Text>
+          <Text style={styles.subtitle}>Your saved height measurements are listed here.</Text>
+        </LinearGradient>
 
         <View style={styles.filterCard}>
           <Text style={styles.filterTitle}>Filters</Text>
@@ -137,37 +139,42 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 90,
   },
+  headerBlock: {
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
   title: {
-    color: '#F8FAFC',
+    color: '#FFFFFF',
     fontSize: 30,
     fontWeight: '800',
   },
   subtitle: {
     marginTop: 4,
     marginBottom: 8,
-    color: '#94A3B8',
+    color: '#EAF1FF',
     fontSize: 14,
   },
   filterCard: {
     marginTop: 8,
-    backgroundColor: 'rgba(15, 23, 42, 0.88)',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.25)',
+    borderColor: 'rgba(125,145,191,0.25)',
     borderRadius: 14,
     padding: 12,
   },
   filterTitle: {
-    color: '#22D3EE',
+    color: '#4A5A7A',
     fontSize: 14,
     fontWeight: '800',
     marginBottom: 8,
   },
   filterInput: {
     borderWidth: 1,
-    borderColor: 'rgba(34,211,238,0.35)',
-    backgroundColor: 'rgba(2, 6, 23, 0.65)',
+    borderColor: 'rgba(53,189,244,0.35)',
+    backgroundColor: '#F2F5FD',
     borderRadius: 10,
-    color: '#F8FAFC',
+    color: '#1F2A44',
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 14,
@@ -185,12 +192,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(51, 65, 85, 0.8)',
+    backgroundColor: '#EEF3FF',
     borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.3)',
+    borderColor: 'rgba(125,145,191,0.3)',
   },
   clearBtnText: {
-    color: '#CBD5E1',
+    color: '#4A5A7A',
     fontWeight: '700',
     fontSize: 13,
   },
@@ -204,54 +211,54 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.3)',
-    backgroundColor: 'rgba(30,41,59,0.65)',
+    borderColor: 'rgba(125,145,191,0.3)',
+    backgroundColor: '#EEF3FF',
   },
   chipActive: {
-    borderColor: '#22D3EE',
-    backgroundColor: 'rgba(34,211,238,0.18)',
+    borderColor: '#35BDF4',
+    backgroundColor: 'rgba(53,189,244,0.18)',
   },
   chipText: {
-    color: '#CBD5E1',
+    color: '#6B7896',
     fontSize: 12,
     fontWeight: '700',
   },
   chipTextActive: {
-    color: '#67E8F9',
+    color: '#2D9FD6',
   },
   card: {
     marginTop: 10,
-    backgroundColor: 'rgba(15, 23, 42, 0.88)',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.25)',
+    borderColor: 'rgba(125,145,191,0.25)',
     borderRadius: 14,
     padding: 12,
   },
   emptyText: {
-    color: '#94A3B8',
+    color: '#7C89A6',
     fontSize: 13,
   },
   historyItem: {
     borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.2)',
+    borderColor: 'rgba(125,145,191,0.2)',
     borderRadius: 10,
     padding: 10,
     marginTop: 8,
-    backgroundColor: 'rgba(30,41,59,0.5)',
+    backgroundColor: '#F8FAFF',
   },
   historyMain: {
-    color: '#F8FAFC',
+    color: '#1F2A44',
     fontSize: 15,
     fontWeight: '800',
   },
   historySub: {
     marginTop: 3,
-    color: '#93C5FD',
+    color: '#2D9FD6',
     fontSize: 12,
   },
   historyDate: {
     marginTop: 4,
-    color: '#64748B',
+    color: '#95A1BD',
     fontSize: 11,
   },
 });

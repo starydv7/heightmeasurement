@@ -2,8 +2,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { HomeScreen } from './src/screens/HomeScreen';
-import { colors } from './src/constants/theme';
 import { LaunchScreen } from './src/screens/LaunchScreen';
 import { ResultScreen } from './src/screens/ResultScreen';
 import { HeightResultSummary } from './src/types/measurement';
@@ -22,7 +22,7 @@ export default function App() {
     return (
       <SafeAreaProvider>
         <SafeAreaView style={styles.launchContainer} edges={['top', 'bottom']}>
-          <StatusBar style="light" translucent={false} />
+          <StatusBar style="dark" translucent={false} />
           <LaunchScreen onGetStarted={() => setIsLaunchComplete(true)} />
         </SafeAreaView>
       </SafeAreaProvider>
@@ -33,7 +33,7 @@ export default function App() {
     return (
       <SafeAreaProvider>
         <SafeAreaView style={styles.launchContainer} edges={['top', 'bottom']}>
-          <StatusBar style="light" translucent={false} />
+          <StatusBar style="dark" translucent={false} />
           <ResultScreen
             result={result}
             onBack={() => setResult(null)}
@@ -60,22 +60,43 @@ export default function App() {
 
         <View style={styles.navBar}>
           <Pressable
-            style={[styles.navButton, activeTab === 'measure' && styles.navButtonActive]}
+            style={styles.navButton}
             onPress={() => setActiveTab('measure')}
           >
-            <Text style={[styles.navButtonText, activeTab === 'measure' && styles.navButtonTextActive]}>Measure</Text>
+            {activeTab === 'measure' ? (
+              <>
+                <LinearGradient colors={['#6D63FF', '#20C7F3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.navActiveGradient} />
+                <Text style={[styles.navButtonText, styles.navButtonTextActive]}>Measure</Text>
+              </>
+            ) : (
+              <Text style={styles.navButtonText}>Measure</Text>
+            )}
           </Pressable>
           <Pressable
-            style={[styles.navButton, activeTab === 'profile' && styles.navButtonActive]}
+            style={styles.navButton}
             onPress={() => setActiveTab('profile')}
           >
-            <Text style={[styles.navButtonText, activeTab === 'profile' && styles.navButtonTextActive]}>Profile</Text>
+            {activeTab === 'profile' ? (
+              <>
+                <LinearGradient colors={['#6D63FF', '#20C7F3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.navActiveGradient} />
+                <Text style={[styles.navButtonText, styles.navButtonTextActive]}>Profile</Text>
+              </>
+            ) : (
+              <Text style={styles.navButtonText}>Profile</Text>
+            )}
           </Pressable>
           <Pressable
-            style={[styles.navButton, activeTab === 'history' && styles.navButtonActive]}
+            style={styles.navButton}
             onPress={() => setActiveTab('history')}
           >
-            <Text style={[styles.navButtonText, activeTab === 'history' && styles.navButtonTextActive]}>History</Text>
+            {activeTab === 'history' ? (
+              <>
+                <LinearGradient colors={['#6D63FF', '#20C7F3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.navActiveGradient} />
+                <Text style={[styles.navButtonText, styles.navButtonTextActive]}>History</Text>
+              </>
+            ) : (
+              <Text style={styles.navButtonText}>History</Text>
+            )}
           </Pressable>
         </View>
       </SafeAreaView>
@@ -86,20 +107,21 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#F7FAFF',
   },
   screenContainer: {
     flex: 1,
+    backgroundColor: '#F7FAFF',
   },
   launchContainer: {
     flex: 1,
-    backgroundColor: '#021226',
+    backgroundColor: '#F7FAFF',
   },
   navBar: {
     flexDirection: 'row',
-    backgroundColor: '#020617',
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(148,163,184,0.2)',
+    borderTopColor: 'rgba(125,145,191,0.2)',
     paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: 12,
@@ -109,21 +131,23 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 12,
     paddingVertical: 10,
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(30,41,59,0.8)',
+    backgroundColor: '#EEF3FF',
     borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.2)',
-  },
-  navButtonActive: {
-    backgroundColor: '#22D3EE',
-    borderColor: 'rgba(34,211,238,0.9)',
+    borderColor: 'rgba(125,145,191,0.25)',
+    overflow: 'hidden',
   },
   navButtonText: {
-    color: '#CBD5E1',
+    color: '#9AA6C2',
     fontSize: 15,
     fontWeight: '700',
   },
   navButtonTextActive: {
-    color: '#042F2E',
+    color: '#FFFFFF',
+  },
+  navActiveGradient: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 12,
   },
 });

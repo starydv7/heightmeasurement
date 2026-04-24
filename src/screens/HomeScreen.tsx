@@ -15,6 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { estimateHeight } from '../services/measurementService';
 import { HeightMeasurementResult, HeightResultSummary } from '../types/measurement';
 import { cmToFeetAndInches } from '../utils/unit';
+import { scale } from '../theme/ui';
 
 function toNumber(value: string): number {
   return Number(value.trim());
@@ -377,19 +378,22 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
     Number.isFinite(editedHeightNumber) && editedHeightNumber > 0 ? cmToFeetAndInches(editedHeightNumber) : '';
 
   return (
-    <LinearGradient colors={['#020817', '#0B1635', '#040A1D']} style={styles.page}>
+    <LinearGradient colors={['#6D63FF', '#20C7F3']} style={styles.page}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.deviceCard}>
+        <LinearGradient colors={['#6D63FF', '#20C7F3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.headerArea}>
           <View style={styles.topRow}>
             <View style={styles.topIcon}>
-              <Text style={styles.topIconText}>{'<'}</Text>
+              <Text style={styles.topIconText}>{'‹'}</Text>
             </View>
             <Text style={styles.topTitle}>Measure Height</Text>
             <View style={styles.topIcon}>
               <Text style={styles.topIconText}>?</Text>
             </View>
           </View>
+        </LinearGradient>
 
+        <View style={styles.bodyArea}>
+          <View style={styles.deviceCard}>
           <View style={styles.meterWrap}>
             <View style={styles.meterOuter}>
               <View style={styles.meterInner}>
@@ -397,8 +401,18 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
                 <Text style={styles.meterUnit}>CM</Text>
               </View>
             </View>
-            <Text style={styles.awaitingTitle}>{result ? 'Height Estimated' : 'Awaiting Input'}</Text>
-            <Text style={styles.awaitingHint}>• Keep person + ref at same distance</Text>
+            <LinearGradient
+              colors={['#6D63FF', '#20C7F3']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.awaitingBadge}
+            >
+              <View style={styles.awaitingDot} />
+              <Text style={styles.awaitingTitle}>{result ? 'Height Estimated' : 'Awaiting Input'}</Text>
+            </LinearGradient>
+            <Text style={styles.awaitingHint}>
+              Keep person + ref at <Text style={styles.awaitingHintAccent}>same distance</Text>
+            </Text>
           </View>
 
           <View style={styles.statsRow}>
@@ -424,8 +438,24 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
               {wizardSteps.map((step, index) => {
                 const active = wizardStage === step.key;
                 const done = wizardSteps.findIndex((s) => s.key === wizardStage) > index;
+
+                if (active) {
+                  return (
+                    <LinearGradient
+                      key={step.key}
+                      colors={['#6D63FF', '#20C7F3']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={[styles.wizardItem, styles.wizardItemActive]}
+                    >
+                      <View style={[styles.wizardDot, styles.wizardDotActiveOnGradient]} />
+                      <Text style={[styles.wizardText, styles.wizardTextActiveOnGradient]}>{step.label}</Text>
+                    </LinearGradient>
+                  );
+                }
+
                 return (
-                  <View key={step.key} style={styles.wizardItem}>
+                  <View key={step.key} style={[styles.wizardItem, done && styles.wizardItemDone]}>
                     <View style={[styles.wizardDot, active && styles.wizardDotActive, done && styles.wizardDotDone]} />
                     <Text style={[styles.wizardText, (active || done) && styles.wizardTextActive]}>{step.label}</Text>
                   </View>
@@ -550,7 +580,14 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
           <View style={styles.actionRow}>
             {wizardStage === 'capture' ? (
               <Pressable style={styles.cameraButtonFull} onPress={handleStartCamera}>
-                <Text style={styles.cameraButtonText}>Open Camera</Text>
+                <LinearGradient
+                  colors={['#6D63FF', '#20C7F3']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.cameraButtonFullGradient}
+                >
+                  <Text style={styles.cameraButtonPrimaryText}>Open Camera</Text>
+                </LinearGradient>
               </Pressable>
             ) : (
               <>
@@ -598,6 +635,7 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
               {finalHeightFeet ? <Text style={styles.editedMeta}>{finalHeightFeet}</Text> : null}
             </View>
           ) : null}
+          </View>
         </View>
       </ScrollView>
     </LinearGradient>
@@ -609,16 +647,31 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 16,
-    paddingTop: 18,
-    paddingBottom: 30,
+    paddingBottom: 28,
+  },
+  headerArea: {
+    minHeight: 104,
+    paddingHorizontal: '6%',
+    paddingTop: 16,
+    justifyContent: 'center',
+  },
+  bodyArea: {
+    marginTop: -2,
+    borderTopLeftRadius: scale(38),
+    borderTopRightRadius: scale(38),
+    backgroundColor: '#EAF1F7',
+    paddingHorizontal: '4%',
+    paddingTop: 12,
+    minHeight: 680,
   },
   deviceCard: {
-    backgroundColor: 'rgba(15, 23, 42, 0.92)',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.24)',
-    padding: 14,
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
+    backgroundColor: 'transparent',
+    borderRadius: scale(24),
+    borderWidth: 0,
+    padding: 10,
   },
   topRow: {
     flexDirection: 'row',
@@ -629,21 +682,22 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 10,
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.25)',
+    borderColor: 'rgba(255, 255, 255, 0.55)',
   },
   topIconText: {
-    color: '#67E8F9',
+    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700',
   },
   topTitle: {
-    color: '#F8FAFC',
-    fontSize: 25,
+    color: '#FFFFFF',
+    fontSize: 37,
     fontWeight: '800',
+    lineHeight: 40,
   },
   meterWrap: {
     marginTop: 16,
@@ -654,41 +708,59 @@ const styles = StyleSheet.create({
     height: 150,
     borderRadius: 75,
     borderWidth: 1.5,
-    borderColor: 'rgba(34, 211, 238, 0.5)',
+    borderColor: 'rgba(93, 108, 255, 0.18)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(8, 47, 73, 0.35)',
+    backgroundColor: 'rgba(221, 228, 247, 0.8)',
   },
   meterInner: {
     width: 138,
     height: 138,
     borderRadius: 69,
     borderWidth: 1,
-    borderColor: 'rgba(34, 211, 238, 0.3)',
+    borderColor: 'rgba(93, 108, 255, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   meterValue: {
-    color: '#F8FAFC',
+    color: '#1F2A44',
     fontSize: 32,
     fontWeight: '900',
   },
   meterUnit: {
-    color: '#22D3EE',
+    color: '#6D63FF',
     fontSize: 13,
     fontWeight: '700',
   },
   awaitingTitle: {
-    marginTop: 12,
-    color: '#F8FAFC',
-    fontSize: 28,
+    color: '#FFFFFF',
+    fontSize: 31,
     fontWeight: '800',
+  },
+  awaitingBadge: {
+    marginTop: 12,
+    borderRadius: 999,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  awaitingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#B8E72A',
   },
   awaitingHint: {
     marginTop: 4,
-    color: '#22D3EE',
+    color: '#6B7896',
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
+  },
+  awaitingHintAccent: {
+    color: '#6D63FF',
+    fontWeight: '800',
   },
   statsRow: {
     marginTop: 14,
@@ -700,22 +772,22 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.22)',
-    backgroundColor: 'rgba(30, 41, 59, 0.55)',
+    borderColor: 'rgba(125, 145, 191, 0.25)',
+    backgroundColor: '#FFFFFF',
   },
   statLabel: {
-    color: '#94A3B8',
+    color: '#8E98B1',
     fontSize: 9,
     fontWeight: '700',
   },
   statValue: {
     marginTop: 4,
-    color: '#F8FAFC',
+    color: '#1F2A44',
     fontSize: 22,
     fontWeight: '800',
   },
   statSub: {
-    color: '#64748B',
+    color: '#9BA5BC',
     fontSize: 10,
   },
   fieldWrap: {
@@ -726,8 +798,8 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.22)',
-    backgroundColor: 'rgba(2, 6, 23, 0.5)',
+    borderColor: 'rgba(125, 145, 191, 0.25)',
+    backgroundColor: '#FFFFFF',
   },
   wizardRow: {
     flexDirection: 'row',
@@ -738,6 +810,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#EEF2FC',
+  },
+  wizardItemActive: {
+    backgroundColor: 'transparent',
+  },
+  wizardItemDone: {
+    backgroundColor: '#EAF7F1',
   },
   wizardDot: {
     width: 8,
@@ -752,21 +834,28 @@ const styles = StyleSheet.create({
     backgroundColor: '#10B981',
   },
   wizardText: {
-    color: '#94A3B8',
+    color: '#8E98B1',
     fontSize: 11,
     fontWeight: '700',
   },
   wizardTextActive: {
-    color: '#E2E8F0',
+    color: '#4A5A7A',
+  },
+  wizardTextActiveOnGradient: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  wizardDotActiveOnGradient: {
+    backgroundColor: '#B8E72A',
   },
   wizardHint: {
     marginTop: 7,
-    color: '#CBD5E1',
+    color: '#4A5A7A',
     fontSize: 12,
     fontWeight: '600',
   },
   fieldLabel: {
-    color: '#94A3B8',
+    color: '#8E98B1',
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.5,
@@ -776,26 +865,26 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(34, 211, 238, 0.5)',
-    backgroundColor: 'rgba(2, 6, 23, 0.6)',
+    borderColor: 'rgba(53, 189, 244, 0.35)',
+    backgroundColor: '#F2F5FD',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
   },
   fieldInput: {
     flex: 1,
-    color: '#F8FAFC',
+    color: '#1F2A44',
     fontSize: 16,
     fontWeight: '700',
   },
   unitChip: {
     borderRadius: 8,
-    backgroundColor: 'rgba(51, 65, 85, 0.8)',
+    backgroundColor: '#E1E8F8',
     paddingVertical: 3,
     paddingHorizontal: 8,
   },
   unitChipText: {
-    color: '#CBD5E1',
+    color: '#6B7896',
     fontSize: 11,
     fontWeight: '700',
   },
@@ -804,8 +893,8 @@ const styles = StyleSheet.create({
     padding: 9,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.22)',
-    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    borderColor: 'rgba(125, 145, 191, 0.25)',
+    backgroundColor: '#FFFFFF',
   },
   previewHead: {
     flexDirection: 'row',
@@ -813,18 +902,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   previewLabel: {
-    color: '#E2E8F0',
+    color: '#4A5A7A',
     fontSize: 12,
     fontWeight: '700',
   },
   previewStep: {
-    color: '#22D3EE',
+    color: '#6D63FF',
     fontSize: 12,
     fontWeight: '800',
   },
   previewSize: {
     marginTop: 4,
-    color: '#64748B',
+    color: '#8E98B1',
     fontSize: 11,
   },
   previewImage: {
@@ -837,8 +926,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(34, 211, 238, 0.4)',
-    backgroundColor: '#020617',
+    borderColor: 'rgba(53, 189, 244, 0.4)',
+    backgroundColor: '#EAF1FF',
   },
   guideLayer: {
     ...StyleSheet.absoluteFillObject,
@@ -852,8 +941,8 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: 'rgba(56, 189, 248, 0.8)',
-    backgroundColor: 'rgba(34, 211, 238, 0.08)',
+    borderColor: 'rgba(93, 108, 255, 0.85)',
+    backgroundColor: 'rgba(93, 108, 255, 0.08)',
     justifyContent: 'flex-start',
     alignItems: 'center',
     paddingTop: 6,
@@ -867,14 +956,14 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: 'rgba(52, 211, 153, 0.85)',
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    borderColor: 'rgba(53, 189, 244, 0.85)',
+    backgroundColor: 'rgba(53, 189, 244, 0.08)',
     justifyContent: 'flex-start',
     alignItems: 'center',
     paddingTop: 6,
   },
   guideText: {
-    color: '#E2E8F0',
+    color: '#4A5A7A',
     fontSize: 9,
     fontWeight: '800',
     letterSpacing: 0.6,
@@ -887,13 +976,13 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: '#22D3EE',
+    backgroundColor: '#35BDF4',
     borderWidth: 2,
-    borderColor: '#082F49',
+    borderColor: '#FFFFFF',
   },
   stepText: {
     fontSize: 12,
-    color: '#CBD5E1',
+    color: '#4A5A7A',
     marginTop: 4,
     marginBottom: 8,
     fontWeight: '600',
@@ -908,25 +997,39 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.3)',
+    borderColor: 'rgba(125, 145, 191, 0.32)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(30, 41, 59, 0.7)',
+    backgroundColor: '#EEF3FF',
   },
   cameraButtonFull: {
     flex: 1,
     height: 48,
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.3)',
+    overflow: 'hidden',
+    shadowColor: '#6D63FF',
+    shadowOpacity: 0.26,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+  cameraButtonFullGradient: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(30, 41, 59, 0.7)',
+    borderRadius: 14,
   },
   cameraButtonText: {
-    color: '#E2E8F0',
-    fontSize: 17,
+    color: '#4A5A7A',
+    fontSize: 15,
     fontWeight: '700',
+  },
+  cameraButtonPrimaryText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+    lineHeight: 21,
   },
   estimateButton: {
     flex: 1.7,
@@ -934,11 +1037,11 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#22D3EE',
+    backgroundColor: '#35BDF4',
   },
   estimateButtonText: {
-    color: '#042F2E',
-    fontSize: 17,
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: '800',
   },
   buttonDisabled: {
@@ -957,18 +1060,18 @@ const styles = StyleSheet.create({
   infoText: {
     marginTop: 8,
     fontSize: 12,
-    color: '#93C5FD',
+    color: '#2D9FD6',
   },
   editCard: {
     marginTop: 12,
     padding: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.2)',
-    backgroundColor: 'rgba(15, 23, 42, 0.7)',
+    borderColor: 'rgba(125, 145, 191, 0.25)',
+    backgroundColor: '#FFFFFF',
   },
   editCardTitle: {
-    color: '#E2E8F0',
+    color: '#4A5A7A',
     fontSize: 12,
     fontWeight: '700',
     marginBottom: 7,
@@ -976,18 +1079,18 @@ const styles = StyleSheet.create({
   editInput: {
     height: 46,
     borderWidth: 1,
-    borderColor: 'rgba(34, 211, 238, 0.5)',
-    backgroundColor: 'rgba(2, 6, 23, 0.6)',
+    borderColor: 'rgba(53, 189, 244, 0.4)',
+    backgroundColor: '#F2F5FD',
     borderRadius: 12,
     paddingHorizontal: 12,
-    color: '#F8FAFC',
+    color: '#1F2A44',
     fontSize: 16,
     fontWeight: '700',
   },
   editedMeta: {
     marginTop: 8,
     fontSize: 13,
-    color: '#67E8F9',
+    color: '#2D9FD6',
     fontWeight: '700',
   },
 });
