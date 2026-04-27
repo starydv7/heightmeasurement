@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   GestureResponderEvent,
   Image,
@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as ImagePicker from 'expo-image-picker';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { estimateHeight } from '../services/measurementService';
 import { HeightMeasurementResult, HeightResultSummary } from '../types/measurement';
 import { cmToFeetAndInches } from '../utils/unit';
@@ -121,9 +121,13 @@ function MeasureField({ label, value, placeholder, unit, onChangeText }: FieldPr
 
 type HomeScreenProps = {
   onResultReady: (result: HeightResultSummary) => void;
+  onOpenNoReference: () => void;
 };
 
-export function HomeScreen({ onResultReady }: HomeScreenProps) {
+export function HomeScreen({ onResultReady, onOpenNoReference }: HomeScreenProps) {
+  const cameraRef = useRef<CameraView | null>(null);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [personPixelHeight, setPersonPixelHeight] = useState('');
   const [referencePixelHeight, setReferencePixelHeight] = useState('');
   const [referenceRealHeightCm, setReferenceRealHeightCm] = useState('');
@@ -202,41 +206,45 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
   };
 
   const handleStartCamera = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
+    const granted = permission?.granted ? true : (await requestPermission()).granted;
+    if (!granted) {
       setError('Camera permission is required to capture an image.');
       return;
     }
-
-    const capture = await ImagePicker.launchCameraAsync({
-      allowsEditing: false,
-      quality: 1,
-    });
-
-    if (capture.canceled || !capture.assets[0]) {
-      return;
-    }
-
-    const { uri, width, height } = capture.assets[0];
-    setCapturedImageUri(uri);
-    setCapturedImageSize(`${width} x ${height} px`);
-    setCapturedImageWidth(width);
-    setCapturedImageHeight(height);
-    setDisplayedImageWidth(0);
-    setDisplayedImageHeight(0);
-    setMarkers({});
-    setCurrentStepIndex(0);
-    setWizardStage('markPerson');
-    setImageDerivedPixels(null);
-    setPerspectiveWarning(null);
-    setIsAdjustingPoints(false);
-    setAutoDetectNote(null);
-    setPersonPixelHeight('');
-    setReferencePixelHeight('');
-    setResult(null);
-    setEditedHeightCm('');
-    setEditedHeightError(null);
+    setIsCameraOpen(true);
     setError(null);
+  };
+
+  const handleCaptureFromCamera = async () => {
+    try {
+      const capture = await cameraRef.current?.takePictureAsync({ quality: 1 });
+      if (!capture?.uri || !capture.width || !capture.height) {
+        return;
+      }
+      const { uri, width, height } = capture;
+      setCapturedImageUri(uri);
+      setCapturedImageSize(`${width} x ${height} px`);
+      setCapturedImageWidth(width);
+      setCapturedImageHeight(height);
+      setDisplayedImageWidth(0);
+      setDisplayedImageHeight(0);
+      setMarkers({});
+      setCurrentStepIndex(0);
+      setWizardStage('markPerson');
+      setImageDerivedPixels(null);
+      setPerspectiveWarning(null);
+      setIsAdjustingPoints(false);
+      setAutoDetectNote(null);
+      setPersonPixelHeight('');
+      setReferencePixelHeight('');
+      setResult(null);
+      setEditedHeightCm('');
+      setEditedHeightError(null);
+      setError(null);
+      setIsCameraOpen(false);
+    } catch {
+      setError('Could not capture image. Please try again.');
+    }
   };
 
   const handleImageLayout = (event: LayoutChangeEvent) => {
@@ -335,6 +343,7 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
   };
 
   const handleResetMeasurement = () => {
+    setIsCameraOpen(false);
     setCapturedImageUri(null);
     setCapturedImageSize(null);
     setCapturedImageWidth(0);
@@ -379,19 +388,19 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
 
   return (
     <LinearGradient colors={['#6D63FF', '#20C7F3']} style={styles.page}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <LinearGradient colors={['#6D63FF', '#20C7F3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.headerArea}>
-          <View style={styles.topRow}>
-            <View style={styles.topIcon}>
-              <Text style={styles.topIconText}>{'‹'}</Text>
-            </View>
-            <Text style={styles.topTitle}>Measure Height</Text>
-            <View style={styles.topIcon}>
-              <Text style={styles.topIconText}>?</Text>
-            </View>
+      <LinearGradient colors={['#6D63FF', '#20C7F3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.headerArea}>
+        <View style={styles.topRow}>
+          <View style={styles.topIcon}>
+            <Text style={styles.topIconText}>{'‹'}</Text>
           </View>
-        </LinearGradient>
+          <Text style={styles.topTitle}>Measure Height</Text>
+          <View style={styles.topIcon}>
+            <Text style={styles.topIconText}>?</Text>
+          </View>
+        </View>
+      </LinearGradient>
 
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.bodyArea}>
           <View style={styles.deviceCard}>
           <View style={styles.meterWrap}>
@@ -503,7 +512,26 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
             </>
           )}
 
-          {capturedImageUri ? (
+          {isCameraOpen ? (
+            <View style={styles.cameraWrap}>
+              <CameraView ref={cameraRef} style={styles.cameraPreview} facing="back" />
+              <View style={styles.cameraOverlay} pointerEvents="none">
+                <Text style={styles.cameraGuideTitle}>Live Capture Guide</Text>
+                <Text style={styles.cameraGuideText}>Keep person and reference fully visible in same plane.</Text>
+                <View style={styles.cameraGuideBadge}>
+                  <Text style={styles.cameraGuideBadgeText}>Best distance: 1.8m - 3.0m</Text>
+                </View>
+              </View>
+              <View style={styles.cameraActionRow}>
+                <Pressable style={styles.cameraCancelBtn} onPress={() => setIsCameraOpen(false)}>
+                  <Text style={styles.cameraCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable style={styles.cameraShootBtn} onPress={handleCaptureFromCamera}>
+                  <Text style={styles.cameraShootText}>Capture</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : capturedImageUri ? (
             <View style={styles.previewBox}>
               <View style={styles.previewHead}>
                 <Text style={styles.previewLabel}>Tap points on photo</Text>
@@ -579,16 +607,29 @@ export function HomeScreen({ onResultReady }: HomeScreenProps) {
 
           <View style={styles.actionRow}>
             {wizardStage === 'capture' ? (
-              <Pressable style={styles.cameraButtonFull} onPress={handleStartCamera}>
-                <LinearGradient
-                  colors={['#6D63FF', '#20C7F3']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.cameraButtonFullGradient}
-                >
-                  <Text style={styles.cameraButtonPrimaryText}>Open Camera</Text>
-                </LinearGradient>
-              </Pressable>
+              <>
+                <Pressable style={styles.cameraButtonFull} onPress={handleStartCamera}>
+                  <LinearGradient
+                    colors={['#6D63FF', '#20C7F3']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.cameraButtonFullGradient}
+                  >
+                    <Text style={styles.cameraButtonPrimaryText}>Open Camera</Text>
+                  </LinearGradient>
+                </Pressable>
+                <Pressable style={styles.modeSwitchButton} onPress={onOpenNoReference}>
+                  <Text style={styles.modeSwitchText}>Measure Without Reference</Text>
+                </Pressable>
+                <View style={styles.modeInfoCard}>
+                  <View style={styles.modeInfoRow}>
+                    <Text style={styles.modeInfoLabel}>Reference mode: High accuracy</Text>
+                  </View>
+                  <View style={styles.modeInfoRow}>
+                    <Text style={styles.modeInfoSubLabel}>No-reference mode: Quick estimate (lower confidence)</Text>
+                  </View>
+                </View>
+              </>
             ) : (
               <>
                 <Pressable style={styles.cameraButton} onPress={handleResetMeasurement}>
@@ -651,7 +692,7 @@ const styles = StyleSheet.create({
   },
   headerArea: {
     minHeight: 104,
-    paddingHorizontal: '6%',
+    paddingHorizontal: 0,
     paddingTop: 16,
     justifyContent: 'center',
   },
@@ -677,6 +718,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 16,
   },
   topIcon: {
     width: 30,
@@ -695,18 +737,18 @@ const styles = StyleSheet.create({
   },
   topTitle: {
     color: '#FFFFFF',
-    fontSize: 37,
+    fontSize: 30,
     fontWeight: '800',
-    lineHeight: 40,
+    lineHeight: 34,
   },
   meterWrap: {
     marginTop: 16,
     alignItems: 'center',
   },
   meterOuter: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
+    width: scale(150),
+    height: scale(150),
+    borderRadius: scale(75),
     borderWidth: 1.5,
     borderColor: 'rgba(93, 108, 255, 0.18)',
     alignItems: 'center',
@@ -714,9 +756,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(221, 228, 247, 0.8)',
   },
   meterInner: {
-    width: 138,
-    height: 138,
-    borderRadius: 69,
+    width: scale(138),
+    height: scale(138),
+    borderRadius: scale(69),
     borderWidth: 1,
     borderColor: 'rgba(93, 108, 255, 0.15)',
     alignItems: 'center',
@@ -724,7 +766,7 @@ const styles = StyleSheet.create({
   },
   meterValue: {
     color: '#1F2A44',
-    fontSize: 32,
+    fontSize: scale(32),
     fontWeight: '900',
   },
   meterUnit: {
@@ -734,7 +776,7 @@ const styles = StyleSheet.create({
   },
   awaitingTitle: {
     color: '#FFFFFF',
-    fontSize: 31,
+    fontSize: scale(31),
     fontWeight: '800',
   },
   awaitingBadge: {
@@ -763,7 +805,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   statsRow: {
-    marginTop: 14,
+    marginTop: scale(14),
     flexDirection: 'row',
     gap: 8,
   },
@@ -794,8 +836,8 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   wizardCard: {
-    marginTop: 12,
-    padding: 10,
+    marginTop: scale(12),
+    padding: scale(10),
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(125, 145, 191, 0.25)',
@@ -889,12 +931,87 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   previewBox: {
-    marginTop: 12,
-    padding: 9,
+    marginTop: scale(12),
+    padding: scale(9),
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(125, 145, 191, 0.25)',
     backgroundColor: '#FFFFFF',
+  },
+  cameraWrap: {
+    marginTop: 12,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(53, 189, 244, 0.4)',
+    backgroundColor: '#000000',
+  },
+  cameraPreview: {
+    width: '100%',
+    aspectRatio: 3 / 4,
+  },
+  cameraOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    padding: 10,
+    justifyContent: 'space-between',
+  },
+  cameraGuideTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  cameraGuideText: {
+    color: '#EAF1FF',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  cameraGuideBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(16, 185, 129, 0.88)',
+  },
+  cameraGuideBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  cameraActionRow: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    bottom: 10,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  cameraCancelBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+  },
+  cameraCancelText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  cameraShootBtn: {
+    flex: 1.4,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#35BDF4',
+  },
+  cameraShootText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
   },
   previewHead: {
     flexDirection: 'row',
@@ -988,13 +1105,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   actionRow: {
-    marginTop: 12,
+    marginTop: scale(12),
     flexDirection: 'row',
     gap: 10,
+    flexWrap: 'wrap',
   },
   cameraButton: {
     flex: 1,
-    height: 48,
+    height: scale(48),
     borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(125, 145, 191, 0.32)',
@@ -1004,7 +1122,7 @@ const styles = StyleSheet.create({
   },
   cameraButtonFull: {
     flex: 1,
-    height: 48,
+    height: scale(48),
     borderRadius: 14,
     overflow: 'hidden',
     shadowColor: '#6D63FF',
@@ -1031,9 +1149,46 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     lineHeight: 21,
   },
+  modeSwitchButton: {
+    width: '100%',
+    height: scale(44),
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(109, 99, 255, 0.45)',
+    backgroundColor: '#EEF3FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeSwitchText: {
+    color: '#5D6CFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  modeInfoCard: {
+    width: '100%',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(125, 145, 191, 0.25)',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  modeInfoRow: {
+    marginTop: 2,
+  },
+  modeInfoLabel: {
+    color: '#2E8FCC',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  modeInfoSubLabel: {
+    color: '#7C89A6',
+    fontSize: 11,
+    fontWeight: '700',
+  },
   estimateButton: {
     flex: 1.7,
-    height: 48,
+    height: scale(48),
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1063,8 +1218,8 @@ const styles = StyleSheet.create({
     color: '#2D9FD6',
   },
   editCard: {
-    marginTop: 12,
-    padding: 10,
+    marginTop: scale(12),
+    padding: scale(10),
     borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(125, 145, 191, 0.25)',

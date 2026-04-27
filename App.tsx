@@ -9,14 +9,18 @@ import { ResultScreen } from './src/screens/ResultScreen';
 import { HeightResultSummary } from './src/types/measurement';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { HistoryScreen } from './src/screens/HistoryScreen';
+import { NoReferenceScreen } from './src/screens/NoReferenceScreen';
+import { scale } from './src/theme/ui';
 
 type TabId = 'measure' | 'profile' | 'history';
+type MeasureMode = 'reference' | 'noReference';
 
 export default function App() {
   const [isLaunchComplete, setIsLaunchComplete] = useState(false);
   const [result, setResult] = useState<HeightResultSummary | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('measure');
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [measureMode, setMeasureMode] = useState<MeasureMode>('reference');
 
   if (!isLaunchComplete) {
     return (
@@ -50,7 +54,11 @@ export default function App() {
         <StatusBar style="dark" translucent={false} />
         <View style={styles.screenContainer}>
           {activeTab === 'measure' ? (
-            <HomeScreen onResultReady={setResult} />
+            measureMode === 'reference' ? (
+              <HomeScreen onResultReady={setResult} onOpenNoReference={() => setMeasureMode('noReference')} />
+            ) : (
+              <NoReferenceScreen onResultReady={setResult} onBack={() => setMeasureMode('reference')} />
+            )
           ) : activeTab === 'history' ? (
             <HistoryScreen refreshKey={historyRefreshKey} />
           ) : (
@@ -122,15 +130,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: 'rgba(125,145,191,0.2)',
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 12,
-    gap: 10,
+    paddingHorizontal: scale(12),
+    paddingTop: scale(8),
+    paddingBottom: scale(12),
+    gap: scale(10),
   },
   navButton: {
     flex: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
+    borderRadius: scale(12),
+    paddingVertical: scale(10),
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#EEF3FF',
@@ -140,7 +148,7 @@ const styles = StyleSheet.create({
   },
   navButtonText: {
     color: '#9AA6C2',
-    fontSize: 15,
+    fontSize: scale(15),
     fontWeight: '700',
   },
   navButtonTextActive: {
@@ -148,6 +156,6 @@ const styles = StyleSheet.create({
   },
   navActiveGradient: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 12,
+    borderRadius: scale(12),
   },
 });

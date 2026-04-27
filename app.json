@@ -38,6 +38,12 @@
         {
           "cameraPermission": "Allow Height Measurement to use your camera to capture a measurement photo."
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Height Measurement to use camera for live measurement guidance."
+        }
       ]
     ],
     "extra": {

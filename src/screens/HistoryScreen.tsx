@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { getSavedHeightResults, SavedHeightRecord } from '../services/storageService';
+import { scale } from '../theme/ui';
 
 type HistoryScreenProps = {
   refreshKey: number;
@@ -47,12 +48,14 @@ export function HistoryScreen({ refreshKey }: HistoryScreenProps) {
 
   return (
     <LinearGradient colors={['#F7FAFF', '#EEF4FF']} style={styles.page}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <View style={styles.headerArea}>
         <LinearGradient colors={['#6D63FF', '#20C7F3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.headerBlock}>
           <Text style={styles.title}>History</Text>
           <Text style={styles.subtitle}>Your saved height measurements are listed here.</Text>
         </LinearGradient>
+      </View>
 
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.filterCard}>
           <Text style={styles.filterTitle}>Filters</Text>
 
@@ -136,60 +139,66 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 16,
-    paddingBottom: 90,
+    padding: scale(16),
+    paddingBottom: scale(90),
+  },
+  headerArea: {
+    minHeight: scale(104),
+    paddingHorizontal: 0,
+    paddingTop: scale(16),
+    justifyContent: 'center',
   },
   headerBlock: {
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderRadius: 0,
+    paddingHorizontal: scale(14),
+    paddingVertical: scale(12),
   },
   title: {
     color: '#FFFFFF',
-    fontSize: 30,
+    fontSize: scale(30),
     fontWeight: '800',
   },
   subtitle: {
-    marginTop: 4,
-    marginBottom: 8,
+    marginTop: scale(4),
+    marginBottom: scale(8),
     color: '#EAF1FF',
-    fontSize: 14,
+    fontSize: scale(14),
   },
   filterCard: {
-    marginTop: 8,
+    marginTop: scale(8),
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: 'rgba(125,145,191,0.25)',
-    borderRadius: 14,
-    padding: 12,
+    borderRadius: scale(14),
+    padding: scale(12),
   },
   filterTitle: {
     color: '#4A5A7A',
-    fontSize: 14,
+    fontSize: scale(14),
     fontWeight: '800',
-    marginBottom: 8,
+    marginBottom: scale(8),
   },
   filterInput: {
     borderWidth: 1,
     borderColor: 'rgba(53,189,244,0.35)',
     backgroundColor: '#F2F5FD',
-    borderRadius: 10,
+    borderRadius: scale(10),
     color: '#1F2A44',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
+    paddingHorizontal: scale(12),
+    paddingVertical: scale(10),
+    fontSize: scale(14),
   },
   smallInput: {
     flex: 1,
   },
   row: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 8,
+    gap: scale(10),
+    marginTop: scale(8),
   },
   clearBtn: {
-    width: 90,
-    borderRadius: 10,
+    width: scale(90),
+    borderRadius: scale(10),
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#EEF3FF',
@@ -199,17 +208,17 @@ const styles = StyleSheet.create({
   clearBtnText: {
     color: '#4A5A7A',
     fontWeight: '700',
-    fontSize: 13,
+    fontSize: scale(13),
   },
   chipRow: {
-    marginTop: 10,
+    marginTop: scale(10),
     flexDirection: 'row',
-    gap: 8,
+    gap: scale(8),
   },
   chip: {
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: scale(12),
+    paddingVertical: scale(7),
     borderWidth: 1,
     borderColor: 'rgba(125,145,191,0.3)',
     backgroundColor: '#EEF3FF',
@@ -220,45 +229,45 @@ const styles = StyleSheet.create({
   },
   chipText: {
     color: '#6B7896',
-    fontSize: 12,
+    fontSize: scale(12),
     fontWeight: '700',
   },
   chipTextActive: {
     color: '#2D9FD6',
   },
   card: {
-    marginTop: 10,
+    marginTop: scale(10),
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: 'rgba(125,145,191,0.25)',
-    borderRadius: 14,
-    padding: 12,
+    borderRadius: scale(14),
+    padding: scale(12),
   },
   emptyText: {
     color: '#7C89A6',
-    fontSize: 13,
+    fontSize: scale(13),
   },
   historyItem: {
     borderWidth: 1,
     borderColor: 'rgba(125,145,191,0.2)',
-    borderRadius: 10,
-    padding: 10,
-    marginTop: 8,
+    borderRadius: scale(10),
+    padding: scale(10),
+    marginTop: scale(8),
     backgroundColor: '#F8FAFF',
   },
   historyMain: {
     color: '#1F2A44',
-    fontSize: 15,
+    fontSize: scale(15),
     fontWeight: '800',
   },
   historySub: {
-    marginTop: 3,
+    marginTop: scale(3),
     color: '#2D9FD6',
-    fontSize: 12,
+    fontSize: scale(12),
   },
   historyDate: {
-    marginTop: 4,
+    marginTop: scale(4),
     color: '#95A1BD',
-    fontSize: 11,
+    fontSize: scale(11),
   },
 });

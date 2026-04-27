@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Alert, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { saveHeightResult } from '../services/storageService';
 import { HeightResultSummary } from '../types/measurement';
+import { scale } from '../theme/ui';
 
 type ResultScreenProps = {
   result: HeightResultSummary;
@@ -38,7 +39,7 @@ export function ResultScreen({ result, onBack, onSaved }: ResultScreenProps) {
 
   return (
     <LinearGradient colors={['#F7FAFF', '#EEF4FF']} style={styles.page}>
-      <View style={styles.content}>
+      <View style={styles.headerArea}>
         <LinearGradient colors={['#6D63FF', '#20C7F3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.headerBlock}>
           <View style={styles.topRow}>
             <Pressable style={styles.iconBtn} onPress={onBack}>
@@ -50,7 +51,9 @@ export function ResultScreen({ result, onBack, onSaved }: ResultScreenProps) {
             </Pressable>
           </View>
         </LinearGradient>
+      </View>
 
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.donePill}>
           <Text style={styles.donePillText}>MEASUREMENT COMPLETE</Text>
         </View>
@@ -93,20 +96,21 @@ export function ResultScreen({ result, onBack, onSaved }: ResultScreenProps) {
         <Pressable style={[styles.saveButton, isSaving && styles.saveButtonDisabled]} onPress={handleSaveResult} disabled={isSaving}>
           <Text style={styles.saveButtonText}>{isSaving ? 'Saving...' : 'Save Result'}</Text>
         </Pressable>
-      </View>
+      </ScrollView>
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   page: { flex: 1 },
-  content: { flex: 1, padding: 16, paddingTop: 24 },
-  headerBlock: { borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10 },
+  headerArea: { minHeight: scale(104), paddingHorizontal: 0, paddingTop: scale(16), justifyContent: 'center' },
+  content: { padding: scale(16), paddingBottom: scale(24) },
+  headerBlock: { borderRadius: 0, paddingHorizontal: scale(14), paddingVertical: scale(12) },
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   iconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 11,
+    width: scale(30),
+    height: scale(30),
+    borderRadius: scale(10),
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.55)',
     backgroundColor: 'rgba(255,255,255,0.25)',
@@ -114,58 +118,58 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconText: { color: '#FFFFFF', fontWeight: '800' },
-  title: { color: '#FFFFFF', fontSize: 25, fontWeight: '800' },
+  title: { color: '#FFFFFF', fontSize: scale(30), fontWeight: '800' },
   donePill: {
-    marginTop: 18,
+    marginTop: scale(18),
     alignSelf: 'center',
     borderWidth: 1,
     borderColor: 'rgba(34,211,238,0.45)',
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: scale(12),
+    paddingVertical: scale(6),
   },
-  donePillText: { color: '#2D9FD6', fontSize: 11, fontWeight: '800' },
-  resultLine: { marginTop: 18, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center' },
-  resultValue: { color: '#1F2A44', fontSize: 80, fontWeight: '900', lineHeight: 86 },
-  resultUnit: { color: '#35BDF4', fontSize: 40, fontWeight: '800' },
-  resultFeet: { textAlign: 'center', color: '#2D9FD6', fontSize: 24, marginTop: 4, fontWeight: '700' },
+  donePillText: { color: '#2D9FD6', fontSize: scale(11), fontWeight: '800' },
+  resultLine: { marginTop: scale(18), flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center' },
+  resultValue: { color: '#1F2A44', fontSize: scale(80), fontWeight: '900', lineHeight: scale(86) },
+  resultUnit: { color: '#35BDF4', fontSize: scale(40), fontWeight: '800' },
+  resultFeet: { textAlign: 'center', color: '#2D9FD6', fontSize: scale(24), marginTop: scale(4), fontWeight: '700' },
   compareCard: {
-    marginTop: 22,
-    borderRadius: 16,
+    marginTop: scale(22),
+    borderRadius: scale(16),
     borderWidth: 1,
     borderColor: 'rgba(125,145,191,0.25)',
     backgroundColor: '#FFFFFF',
-    padding: 14,
+    padding: scale(14),
   },
-  youTag: { alignSelf: 'center', color: '#35BDF4', fontWeight: '800', marginBottom: 8 },
-  bars: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 86 },
-  bar: { width: 62, borderRadius: 8 },
-  barAvg: { height: 45, backgroundColor: '#C8D2E8' },
-  barYou: { height: 72, backgroundColor: '#35BDF4' },
-  barRef: { height: 58, backgroundColor: '#6D63FF' },
-  barLabels: { marginTop: 8, flexDirection: 'row', justifyContent: 'space-between' },
-  barLabel: { color: '#4A5A7A', fontSize: 11, fontWeight: '700' },
-  metricsRow: { marginTop: 14, flexDirection: 'row', gap: 8 },
+  youTag: { alignSelf: 'center', color: '#35BDF4', fontWeight: '800', marginBottom: scale(8) },
+  bars: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: scale(86) },
+  bar: { width: scale(62), borderRadius: scale(8) },
+  barAvg: { height: scale(45), backgroundColor: '#C8D2E8' },
+  barYou: { height: scale(72), backgroundColor: '#35BDF4' },
+  barRef: { height: scale(58), backgroundColor: '#6D63FF' },
+  barLabels: { marginTop: scale(8), flexDirection: 'row', justifyContent: 'space-between' },
+  barLabel: { color: '#4A5A7A', fontSize: scale(11), fontWeight: '700' },
+  metricsRow: { marginTop: scale(14), flexDirection: 'row', gap: scale(8) },
   metricCard: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: scale(12),
     borderWidth: 1,
     borderColor: 'rgba(125,145,191,0.25)',
     backgroundColor: '#FFFFFF',
-    padding: 10,
+    padding: scale(10),
   },
-  metricValue: { color: '#1F2A44', fontSize: 24, fontWeight: '900' },
-  metricLabel: { color: '#7C89A6', fontSize: 10, fontWeight: '700' },
+  metricValue: { color: '#1F2A44', fontSize: scale(24), fontWeight: '900' },
+  metricLabel: { color: '#7C89A6', fontSize: scale(10), fontWeight: '700' },
   saveButton: {
     marginTop: 'auto',
-    marginBottom: 24,
+    marginBottom: scale(24),
     backgroundColor: '#35BDF4',
-    borderRadius: 16,
+    borderRadius: scale(16),
     alignItems: 'center',
-    paddingVertical: 15,
+    paddingVertical: scale(15),
   },
   saveButtonDisabled: {
     opacity: 0.7,
   },
-  saveButtonText: { color: '#FFFFFF', fontSize: 21, fontWeight: '800' },
+  saveButtonText: { color: '#FFFFFF', fontSize: scale(21), fontWeight: '800' },
 });

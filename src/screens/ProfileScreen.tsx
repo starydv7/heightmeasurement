@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { getUserProfile, saveUserProfile } from '../services/storageService';
 import { UserProfile } from '../types/measurement';
+import { scale } from '../theme/ui';
 
 type ProfileScreenProps = {
   refreshKey: number;
@@ -46,12 +47,14 @@ export function ProfileScreen({ refreshKey }: ProfileScreenProps) {
 
   return (
     <LinearGradient colors={['#F7FAFF', '#EEF4FF']} style={styles.page}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <View style={styles.headerArea}>
         <LinearGradient colors={['#6D63FF', '#20C7F3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.headerBlock}>
           <Text style={styles.title}>Profile</Text>
           <Text style={styles.subtitle}>Manage your details and personalize your measurement workspace.</Text>
         </LinearGradient>
+      </View>
 
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.heroCard}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{(profile.fullName.trim().charAt(0) || 'U').toUpperCase()}</Text>
@@ -125,48 +128,54 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 16,
-    paddingBottom: 90,
+    padding: scale(16),
+    paddingBottom: scale(90),
+  },
+  headerArea: {
+    minHeight: scale(104),
+    paddingHorizontal: 0,
+    paddingTop: scale(16),
+    justifyContent: 'center',
   },
   headerBlock: {
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderRadius: 0,
+    paddingHorizontal: scale(14),
+    paddingVertical: scale(12),
   },
   title: {
     color: '#FFFFFF',
-    fontSize: 30,
+    fontSize: scale(30),
     fontWeight: '800',
   },
   subtitle: {
-    marginTop: 4,
-    marginBottom: 12,
+    marginTop: scale(4),
+    marginBottom: scale(12),
     color: '#EAF1FF',
-    fontSize: 14,
+    fontSize: scale(14),
   },
   heroCard: {
-    marginTop: 2,
-    marginBottom: 2,
+    marginTop: scale(2),
+    marginBottom: scale(2),
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: 'rgba(125,145,191,0.25)',
-    borderRadius: 14,
-    padding: 12,
+    borderRadius: scale(14),
+    padding: scale(12),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: scale(10),
   },
   avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: scale(46),
+    height: scale(46),
+    borderRadius: scale(23),
     backgroundColor: '#22D3EE',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: scale(20),
     fontWeight: '900',
   },
   heroTextWrap: {
@@ -174,85 +183,85 @@ const styles = StyleSheet.create({
   },
   heroName: {
     color: '#1F2A44',
-    fontSize: 17,
+    fontSize: scale(17),
     fontWeight: '800',
   },
   heroSub: {
-    marginTop: 2,
+    marginTop: scale(2),
     color: '#7C89A6',
-    fontSize: 12,
+    fontSize: scale(12),
   },
   card: {
-    marginTop: 10,
+    marginTop: scale(10),
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: 'rgba(125,145,191,0.25)',
-    borderRadius: 14,
-    padding: 12,
+    borderRadius: scale(14),
+    padding: scale(12),
   },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: scale(8),
   },
   sectionTitle: {
     color: '#4A5A7A',
-    fontSize: 15,
+    fontSize: scale(15),
     fontWeight: '800',
     marginBottom: 0,
   },
   editBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
+    paddingHorizontal: scale(14),
+    paddingVertical: scale(8),
+    borderRadius: scale(10),
     borderWidth: 1,
     borderColor: 'rgba(53,189,244,0.6)',
     backgroundColor: 'rgba(53,189,244,0.12)',
   },
   editBtnText: {
     color: '#2D9FD6',
-    fontSize: 14,
+    fontSize: scale(14),
     fontWeight: '800',
   },
   label: {
     color: '#4A5A7A',
-    fontSize: 12,
-    marginTop: 6,
-    marginBottom: 4,
+    fontSize: scale(12),
+    marginTop: scale(6),
+    marginBottom: scale(4),
     fontWeight: '700',
   },
   input: {
     borderWidth: 1,
     borderColor: 'rgba(53,189,244,0.35)',
     backgroundColor: '#F2F5FD',
-    borderRadius: 10,
+    borderRadius: scale(10),
     color: '#1F2A44',
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    fontSize: 15,
+    paddingHorizontal: scale(12),
+    paddingVertical: scale(11),
+    fontSize: scale(15),
   },
   addressInput: {
-    minHeight: 70,
+    minHeight: scale(70),
     textAlignVertical: 'top',
   },
   saveBtn: {
-    marginTop: 12,
+    marginTop: scale(12),
     backgroundColor: '#22D3EE',
-    borderRadius: 12,
+    borderRadius: scale(12),
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: scale(12),
   },
   saveBtnText: {
     color: '#FFFFFF',
     fontWeight: '800',
-    fontSize: 16,
+    fontSize: scale(16),
   },
   btnDisabled: {
     opacity: 0.65,
   },
   emptyText: {
     color: '#7C89A6',
-    fontSize: 13,
+    fontSize: scale(13),
   },
 });
