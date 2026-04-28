@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { GestureResponderEvent, Image, LayoutChangeEvent, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { DeviceMotion } from 'expo-sensors';
 import { HeightResultSummary } from '../types/measurement';
 import { scale } from '../theme/ui';
 import { cmToFeetAndInches } from '../utils/unit';
@@ -58,6 +59,7 @@ export function NoReferenceScreen({ onBack, onResultReady }: NoReferenceScreenPr
   const cameraRef = useRef<CameraView | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isCameraReady, setIsCameraReady] = useState(false);
   const [capturedImageUri, setCapturedImageUri] = useState<string | null>(null);
   const [capturedImageWidth, setCapturedImageWidth] = useState(0);
   const [capturedImageHeight, setCapturedImageHeight] = useState(0);
@@ -77,13 +79,13 @@ export function NoReferenceScreen({ onBack, onResultReady }: NoReferenceScreenPr
   const hasBothPoints = Boolean(personTop && personBottom);
   const bodyCoverageRatio = capturedImageHeight > 0 ? personPixelHeight / capturedImageHeight : 0;
   const distanceValue = toNumber(cameraDistanceMeters);
-  const distanceStatus = !Number.isFinite(distanceValue)
-    ? { label: 'Enter distance', tone: 'warn' as const }
-    : distanceValue < 1.8
-    ? { label: 'Too close', tone: 'bad' as const }
-    : distanceValue > 3
-    ? { label: 'Too far', tone: 'bad' as const }
-    : { label: 'Good distance', tone: 'good' as const };
+  const [liveTiltDeg, setLiveTiltDeg] = useState(0);
+  const tiltStatus =
+    liveTiltDeg <= 3
+      ? { label: 'Level', tone: 'good' as const }
+      : liveTiltDeg <= 6
+        ? { label: 'Slight tilt', tone: 'warn' as const }
+        : { label: 'Too tilted', tone: 'bad' as const };
   const tiltDeg = useMemo(() => {
     if (!personTop || !personBottom) return 0;
     const deltaX = Math.abs(personBottom.x - personTop.x);
@@ -92,17 +94,37 @@ export function NoReferenceScreen({ onBack, onResultReady }: NoReferenceScreenPr
     return Math.round((Math.atan(deltaX / deltaY) * 180) / Math.PI);
   }, [personTop, personBottom]);
 
+  useEffect(() => {
+    if (!isCameraOpen) return;
+    let subscription: { remove: () => void } | null = null;
+    DeviceMotion.setUpdateInterval(200);
+    subscription = DeviceMotion.addListener((event) => {
+      const beta = event.rotation?.beta ?? 0;
+      const gamma = event.rotation?.gamma ?? 0;
+      const combined = Math.sqrt(beta * beta + gamma * gamma);
+      if (Number.isFinite(combined)) {
+        setLiveTiltDeg(Math.round(combined));
+      }
+    });
+    return () => subscription?.remove();
+  }, [isCameraOpen]);
+
   const handleStartCamera = async () => {
     const granted = permission?.granted ? true : (await requestPermission()).granted;
     if (!granted) {
       setError('Camera permission is required.');
       return;
     }
+    setIsCameraReady(false);
     setIsCameraOpen(true);
     setError(null);
   };
 
   const handleCaptureFromCamera = async () => {
+    if (!isCameraReady) {
+      setError('Camera is still loading. Please wait a moment.');
+      return;
+    }
     try {
       const capture = await cameraRef.current?.takePictureAsync({ quality: 1 });
       if (!capture?.uri || !capture.width || !capture.height) return;
@@ -242,23 +264,49 @@ export function NoReferenceScreen({ onBack, onResultReady }: NoReferenceScreenPr
 
           {isCameraOpen ? (
             <View style={styles.cameraWrap}>
-              <CameraView ref={cameraRef} style={styles.cameraPreview} facing="back" />
+              <CameraView
+                ref={cameraRef}
+                style={styles.cameraPreview}
+                facing="back"
+                onCameraReady={() => setIsCameraReady(true)}
+              />
               <View style={styles.cameraOverlay} pointerEvents="none">
                 <Text style={styles.cameraGuideTitle}>Live Position Guide</Text>
-                <Text style={styles.cameraGuideText}>Keep full body in frame and phone straight.</Text>
-                <View style={[styles.distanceBadge, distanceStatus.tone === 'good' ? styles.distanceBadgeGood : styles.distanceBadgeBad]}>
-                  <Text style={styles.distanceBadgeText}>
-                    {distanceStatus.label} ({Number.isFinite(distanceValue) ? `${distanceValue.toFixed(1)}m` : '--'})
-                  </Text>
+                <Text style={styles.cameraGuideText}>Keep full body in frame and keep phone level.</Text>
+
+                <View style={styles.badgeRow}>
+                  <View
+                    style={[
+                      styles.badge,
+                      tiltStatus.tone === 'good'
+                        ? styles.badgeGood
+                        : tiltStatus.tone === 'warn'
+                          ? styles.badgeWarn
+                          : styles.badgeBad,
+                    ]}
+                  >
+                    <Text style={styles.badgeText}>{tiltStatus.label} ({liveTiltDeg}°)</Text>
+                  </View>
+                  <View style={[styles.badge, Number.isFinite(distanceValue) ? styles.badgeGood : styles.badgeBad]}>
+                    <Text style={styles.badgeText}>
+                      {Number.isFinite(distanceValue) ? `Distance input: ${distanceValue.toFixed(1)}m` : 'Set distance input'}
+                    </Text>
+                  </View>
                 </View>
-                <Text style={styles.cameraGuideRange}>Best range: 1.8m - 3.0m</Text>
+
+                <Text style={styles.cameraGuideRange}>Best distance: 1.8m - 3.0m (manual input required)</Text>
+                <Text style={styles.cameraGuideRangeSub}>
+                  True camera-to-person distance needs AR/Depth. We don’t show fake values.
+                </Text>
+
+                <View style={styles.frameGuide} />
               </View>
               <View style={styles.cameraActionRow}>
                 <Pressable style={styles.cameraCancelBtn} onPress={() => setIsCameraOpen(false)}>
                   <Text style={styles.cameraCancelText}>Cancel</Text>
                 </Pressable>
-                <Pressable style={styles.cameraShootBtn} onPress={handleCaptureFromCamera}>
-                  <Text style={styles.cameraShootText}>Capture</Text>
+                <Pressable style={[styles.cameraShootBtn, !isCameraReady && styles.cameraShootBtnDisabled]} onPress={handleCaptureFromCamera}>
+                  <Text style={styles.cameraShootText}>{isCameraReady ? 'Capture' : 'Loading...'}</Text>
                 </Pressable>
               </View>
             </View>
@@ -481,20 +529,27 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
-  distanceBadge: {
-    alignSelf: 'flex-start',
+  badgeRow: {
+    flexDirection: 'row',
+    gap: 8,
     marginTop: 6,
+    flexWrap: 'wrap',
+  },
+  badge: {
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  distanceBadgeGood: {
+  badgeGood: {
     backgroundColor: 'rgba(16, 185, 129, 0.88)',
   },
-  distanceBadgeBad: {
+  badgeWarn: {
+    backgroundColor: 'rgba(245, 158, 11, 0.9)',
+  },
+  badgeBad: {
     backgroundColor: 'rgba(225, 95, 107, 0.9)',
   },
-  distanceBadgeText: {
+  badgeText: {
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '800',
@@ -504,6 +559,25 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     marginBottom: 56,
+  },
+  cameraGuideRangeSub: {
+    color: '#DDE7FF',
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 4,
+    marginBottom: 44,
+  },
+  frameGuide: {
+    position: 'absolute',
+    left: '12%',
+    right: '12%',
+    top: '18%',
+    bottom: '18%',
+    borderRadius: 18,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255, 255, 255, 0.55)',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
   },
   cameraActionRow: {
     position: 'absolute',
@@ -535,6 +609,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#35BDF4',
+  },
+  cameraShootBtnDisabled: {
+    opacity: 0.7,
   },
   cameraShootText: {
     color: '#FFFFFF',

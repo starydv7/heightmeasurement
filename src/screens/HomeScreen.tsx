@@ -121,13 +121,15 @@ function MeasureField({ label, value, placeholder, unit, onChangeText }: FieldPr
 
 type HomeScreenProps = {
   onResultReady: (result: HeightResultSummary) => void;
-  onOpenNoReference: () => void;
+  onOpenNoReferenceAR: () => void;
+  onOpenNoReferenceManual: () => void;
 };
 
-export function HomeScreen({ onResultReady, onOpenNoReference }: HomeScreenProps) {
+export function HomeScreen({ onResultReady, onOpenNoReferenceAR, onOpenNoReferenceManual }: HomeScreenProps) {
   const cameraRef = useRef<CameraView | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isCameraReady, setIsCameraReady] = useState(false);
   const [personPixelHeight, setPersonPixelHeight] = useState('');
   const [referencePixelHeight, setReferencePixelHeight] = useState('');
   const [referenceRealHeightCm, setReferenceRealHeightCm] = useState('');
@@ -211,11 +213,16 @@ export function HomeScreen({ onResultReady, onOpenNoReference }: HomeScreenProps
       setError('Camera permission is required to capture an image.');
       return;
     }
+    setIsCameraReady(false);
     setIsCameraOpen(true);
     setError(null);
   };
 
   const handleCaptureFromCamera = async () => {
+    if (!isCameraReady) {
+      setError('Camera is still loading. Please wait a moment.');
+      return;
+    }
     try {
       const capture = await cameraRef.current?.takePictureAsync({ quality: 1 });
       if (!capture?.uri || !capture.width || !capture.height) {
@@ -514,7 +521,7 @@ export function HomeScreen({ onResultReady, onOpenNoReference }: HomeScreenProps
 
           {isCameraOpen ? (
             <View style={styles.cameraWrap}>
-              <CameraView ref={cameraRef} style={styles.cameraPreview} facing="back" />
+              <CameraView ref={cameraRef} style={styles.cameraPreview} facing="back" onCameraReady={() => setIsCameraReady(true)} />
               <View style={styles.cameraOverlay} pointerEvents="none">
                 <Text style={styles.cameraGuideTitle}>Live Capture Guide</Text>
                 <Text style={styles.cameraGuideText}>Keep person and reference fully visible in same plane.</Text>
@@ -526,8 +533,8 @@ export function HomeScreen({ onResultReady, onOpenNoReference }: HomeScreenProps
                 <Pressable style={styles.cameraCancelBtn} onPress={() => setIsCameraOpen(false)}>
                   <Text style={styles.cameraCancelText}>Cancel</Text>
                 </Pressable>
-                <Pressable style={styles.cameraShootBtn} onPress={handleCaptureFromCamera}>
-                  <Text style={styles.cameraShootText}>Capture</Text>
+                <Pressable style={[styles.cameraShootBtn, !isCameraReady && styles.cameraShootBtnDisabled]} onPress={handleCaptureFromCamera}>
+                  <Text style={styles.cameraShootText}>{isCameraReady ? 'Capture' : 'Loading...'}</Text>
                 </Pressable>
               </View>
             </View>
@@ -618,15 +625,18 @@ export function HomeScreen({ onResultReady, onOpenNoReference }: HomeScreenProps
                     <Text style={styles.cameraButtonPrimaryText}>Open Camera</Text>
                   </LinearGradient>
                 </Pressable>
-                <Pressable style={styles.modeSwitchButton} onPress={onOpenNoReference}>
-                  <Text style={styles.modeSwitchText}>Measure Without Reference</Text>
+                <Pressable style={styles.modeSwitchButton} onPress={onOpenNoReferenceAR}>
+                  <Text style={styles.modeSwitchText}>No-Reference (ARCore)</Text>
+                </Pressable>
+                <Pressable style={styles.modeSwitchButtonAlt} onPress={onOpenNoReferenceManual}>
+                  <Text style={styles.modeSwitchTextAlt}>No-Reference (Manual)</Text>
                 </Pressable>
                 <View style={styles.modeInfoCard}>
                   <View style={styles.modeInfoRow}>
                     <Text style={styles.modeInfoLabel}>Reference mode: High accuracy</Text>
                   </View>
                   <View style={styles.modeInfoRow}>
-                    <Text style={styles.modeInfoSubLabel}>No-reference mode: Quick estimate (lower confidence)</Text>
+                    <Text style={styles.modeInfoSubLabel}>AR mode: auto-scale (best) • Manual mode: needs distance input</Text>
                   </View>
                 </View>
               </>
@@ -1008,6 +1018,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#35BDF4',
   },
+  cameraShootBtnDisabled: {
+    opacity: 0.7,
+  },
   cameraShootText: {
     color: '#FFFFFF',
     fontSize: 13,
@@ -1161,6 +1174,21 @@ const styles = StyleSheet.create({
   },
   modeSwitchText: {
     color: '#5D6CFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  modeSwitchButtonAlt: {
+    width: '100%',
+    height: scale(44),
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(53, 189, 244, 0.45)',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeSwitchTextAlt: {
+    color: '#2D9FD6',
     fontSize: 14,
     fontWeight: '800',
   },

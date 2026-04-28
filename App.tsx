@@ -10,10 +10,11 @@ import { HeightResultSummary } from './src/types/measurement';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { HistoryScreen } from './src/screens/HistoryScreen';
 import { NoReferenceScreen } from './src/screens/NoReferenceScreen';
+import { NoReferenceARScreen } from './src/screens/NoReferenceARScreen';
 import { scale } from './src/theme/ui';
 
 type TabId = 'measure' | 'profile' | 'history';
-type MeasureMode = 'reference' | 'noReference';
+type MeasureMode = 'reference' | 'noReferenceManual' | 'noReferenceAR';
 
 export default function App() {
   const [isLaunchComplete, setIsLaunchComplete] = useState(false);
@@ -55,9 +56,21 @@ export default function App() {
         <View style={styles.screenContainer}>
           {activeTab === 'measure' ? (
             measureMode === 'reference' ? (
-              <HomeScreen onResultReady={setResult} onOpenNoReference={() => setMeasureMode('noReference')} />
+              <HomeScreen
+                onResultReady={setResult}
+                onOpenNoReferenceAR={() => setMeasureMode('noReferenceAR')}
+                onOpenNoReferenceManual={() => setMeasureMode('noReferenceManual')}
+              />
             ) : (
-              <NoReferenceScreen onResultReady={setResult} onBack={() => setMeasureMode('reference')} />
+              measureMode === 'noReferenceAR' ? (
+                <NoReferenceARScreen
+                  onResultReady={setResult}
+                  onBack={() => setMeasureMode('reference')}
+                  onOpenManualFallback={() => setMeasureMode('noReferenceManual')}
+                />
+              ) : (
+                <NoReferenceScreen onResultReady={setResult} onBack={() => setMeasureMode('reference')} />
+              )
             )
           ) : activeTab === 'history' ? (
             <HistoryScreen refreshKey={historyRefreshKey} />
