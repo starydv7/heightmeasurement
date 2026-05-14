@@ -3,7 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { getUserProfile, saveUserProfile } from '../services/storageService';
 import { UserProfile } from '../types/measurement';
-import { scale } from '../theme/ui';
+import { scale, ui } from '../theme/ui';
 
 type ProfileScreenProps = {
   refreshKey: number;
@@ -132,26 +132,29 @@ const styles = StyleSheet.create({
     paddingBottom: scale(90),
   },
   headerArea: {
-    minHeight: scale(104),
+    minHeight: ui.header.minHeight,
     paddingHorizontal: 0,
-    paddingTop: scale(16),
+    paddingTop: ui.header.paddingTop,
+    paddingBottom: ui.header.paddingBottom,
     justifyContent: 'center',
   },
   headerBlock: {
     borderRadius: 0,
-    paddingHorizontal: scale(14),
-    paddingVertical: scale(12),
+    paddingHorizontal: ui.header.paddingHorizontal,
+    paddingVertical: ui.header.paddingBottom,
   },
   title: {
     color: '#FFFFFF',
-    fontSize: scale(30),
+    fontSize: ui.header.titleFontSize,
+    lineHeight: ui.header.titleLineHeight,
     fontWeight: '800',
   },
   subtitle: {
     marginTop: scale(4),
-    marginBottom: scale(12),
+    marginBottom: scale(8),
     color: '#EAF1FF',
-    fontSize: scale(14),
+    fontSize: ui.header.subtitleFontSize,
+    fontWeight: '600',
   },
   heroCard: {
     marginTop: scale(2),

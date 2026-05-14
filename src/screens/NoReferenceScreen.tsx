@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { GestureResponderEvent, Image, LayoutChangeEvent, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { GestureResponderEvent, Image, LayoutChangeEvent, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { DeviceMotion } from 'expo-sensors';
 import { HeightResultSummary } from '../types/measurement';
-import { scale } from '../theme/ui';
+import { useMeasureScreenMetrics } from '../hooks/useMeasureScreenMetrics';
+import { takePictureWithAndroidFallbacks, formatAndroidCameraError } from '../utils/cameraCapture';
+import { scale, ui } from '../theme/ui';
 import { cmToFeetAndInches } from '../utils/unit';
 
 type Point = { x: number; y: number };
@@ -56,6 +58,7 @@ function computeNoReferenceConfidence(params: {
 }
 
 export function NoReferenceScreen({ onBack, onResultReady }: NoReferenceScreenProps) {
+  const metrics = useMeasureScreenMetrics();
   const cameraRef = useRef<CameraView | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -120,14 +123,25 @@ export function NoReferenceScreen({ onBack, onResultReady }: NoReferenceScreenPr
     setError(null);
   };
 
+  useEffect(() => {
+    if (!isCameraOpen) return;
+    // Some Android devices don't reliably fire onCameraReady.
+    // This fallback prevents capture from being permanently blocked.
+    const t = setTimeout(() => setIsCameraReady(true), 1200);
+    return () => clearTimeout(t);
+  }, [isCameraOpen]);
+
   const handleCaptureFromCamera = async () => {
     if (!isCameraReady) {
       setError('Camera is still loading. Please wait a moment.');
       return;
     }
     try {
-      const capture = await cameraRef.current?.takePictureAsync({ quality: 1 });
-      if (!capture?.uri || !capture.width || !capture.height) return;
+      if (!cameraRef.current) {
+        setError('Camera is not ready yet. Please try again.');
+        return;
+      }
+      const capture = await takePictureWithAndroidFallbacks(cameraRef.current);
       setCapturedImageUri(capture.uri);
       setCapturedImageWidth(capture.width);
       setCapturedImageHeight(capture.height);
@@ -137,8 +151,15 @@ export function NoReferenceScreen({ onBack, onResultReady }: NoReferenceScreenPr
       setPersonBottom(null);
       setIsCameraOpen(false);
       setError(null);
-    } catch {
-      setError('Could not capture image. Try again.');
+    } catch (e) {
+      if (__DEV__) {
+        console.warn('[NoReferenceScreen] capture', e);
+      }
+      setError(
+        Platform.OS === 'android'
+          ? `Camera capture failed\n\n${formatAndroidCameraError(e)}`
+          : 'Could not capture image. Try again.',
+      );
     }
   };
 
@@ -214,12 +235,32 @@ export function NoReferenceScreen({ onBack, onResultReady }: NoReferenceScreenPr
         <Pressable onPress={onBack} style={styles.backBtn}>
           <Text style={styles.backBtnText}>{'‹'}</Text>
         </Pressable>
-        <Text style={styles.title}>No Reference Mode</Text>
-        <View style={styles.backBtn} />
+        <Text style={styles.title}>No reference</Text>
+        <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.body}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingBottom: metrics.bodyBottomPad,
+            minHeight: metrics.scrollContentMinHeight,
+          },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={metrics.height < 720}
+      >
+        <View
+          style={[
+            styles.body,
+            {
+              paddingHorizontal: metrics.horizontalPadding,
+              maxWidth: metrics.contentMaxWidth,
+              width: '100%',
+              alignSelf: 'center',
+            },
+          ]}
+        >
           <View style={styles.modePillRow}>
             <View style={styles.modePillPrimary}>
               <Text style={styles.modePillPrimaryText}>Reference mode: High accuracy</Text>
@@ -263,10 +304,16 @@ export function NoReferenceScreen({ onBack, onResultReady }: NoReferenceScreenPr
           </View>
 
           {isCameraOpen ? (
-            <View style={styles.cameraWrap}>
+            <View style={styles.cameraWrap} {...(Platform.OS === 'android' ? { collapsable: false } : {})}>
               <CameraView
                 ref={cameraRef}
-                style={styles.cameraPreview}
+                style={[
+                  styles.cameraPreview,
+                  {
+                    height: metrics.cameraPreviewMaxHeight,
+                    maxHeight: metrics.cameraPreviewMaxHeight,
+                  },
+                ]}
                 facing="back"
                 onCameraReady={() => setIsCameraReady(true)}
               />
@@ -314,8 +361,12 @@ export function NoReferenceScreen({ onBack, onResultReady }: NoReferenceScreenPr
             <Pressable onPress={handleImagePress} style={styles.imageWrap}>
               <Image
                 source={{ uri: capturedImageUri }}
-                style={[styles.image, capturedImageWidth && capturedImageHeight ? { aspectRatio: capturedImageWidth / capturedImageHeight } : null]}
-                resizeMode="stretch"
+                style={[
+                  styles.image,
+                  capturedImageWidth && capturedImageHeight ? { aspectRatio: capturedImageWidth / capturedImageHeight } : null,
+                  { maxHeight: metrics.previewMaxHeight },
+                ]}
+                resizeMode="contain"
                 onLayout={handleImageLayout}
               />
               {[personTop, personBottom].map((point, idx) => {
@@ -351,19 +402,20 @@ export function NoReferenceScreen({ onBack, onResultReady }: NoReferenceScreenPr
 
 const styles = StyleSheet.create({
   page: { flex: 1 },
-  content: { paddingBottom: scale(24) },
+  content: { flexGrow: 1, paddingBottom: scale(24) },
   header: {
-    minHeight: scale(104),
-    paddingHorizontal: 0,
-    paddingTop: scale(16),
+    minHeight: ui.header.minHeight,
+    paddingHorizontal: ui.header.paddingHorizontal,
+    paddingTop: ui.header.paddingTop,
+    paddingBottom: ui.header.paddingBottom,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   backBtn: {
-    width: scale(30),
-    height: scale(30),
-    borderRadius: scale(10),
+    width: ui.header.iconSize,
+    height: ui.header.iconSize,
+    borderRadius: ui.header.iconRadius,
     backgroundColor: 'rgba(255,255,255,0.25)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.5)',
@@ -371,15 +423,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   backBtnText: { color: '#FFFFFF', fontSize: scale(16), fontWeight: '800' },
-  title: { color: '#FFFFFF', fontSize: scale(30), fontWeight: '800' },
+  headerSpacer: {
+    width: ui.header.iconSize,
+    height: ui.header.iconSize,
+  },
+  title: {
+    flex: 1,
+    textAlign: 'center',
+    color: '#FFFFFF',
+    fontSize: ui.header.titleFontSize,
+    lineHeight: ui.header.titleLineHeight,
+    fontWeight: '800',
+  },
   body: {
-    marginTop: -2,
-    borderTopLeftRadius: scale(38),
-    borderTopRightRadius: scale(38),
+    marginTop: 0,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     backgroundColor: '#EAF1F7',
-    paddingHorizontal: '4%',
     paddingTop: scale(14),
-    minHeight: scale(660),
   },
   hint: { color: '#4A5A7A', fontSize: 13, fontWeight: '600' },
   modePillRow: {
@@ -509,15 +570,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(53, 189, 244, 0.4)',
     backgroundColor: '#000000',
+    position: 'relative',
+    width: '100%',
+    alignSelf: 'stretch',
   },
   cameraPreview: {
     width: '100%',
-    aspectRatio: 3 / 4,
+    alignSelf: 'center',
   },
   cameraOverlay: {
     ...StyleSheet.absoluteFillObject,
-    padding: 10,
-    justifyContent: 'space-between',
+    padding: scale(10),
+    justifyContent: 'flex-start',
+    gap: scale(6),
+    zIndex: 1,
   },
   cameraGuideTitle: {
     color: '#FFFFFF',
@@ -558,14 +624,13 @@ const styles = StyleSheet.create({
     color: '#EAF1FF',
     fontSize: 11,
     fontWeight: '700',
-    marginBottom: 56,
+    marginTop: scale(4),
   },
   cameraGuideRangeSub: {
     color: '#DDE7FF',
     fontSize: 10,
     fontWeight: '600',
-    marginTop: 4,
-    marginBottom: 44,
+    marginTop: scale(4),
   },
   frameGuide: {
     position: 'absolute',
@@ -581,11 +646,13 @@ const styles = StyleSheet.create({
   },
   cameraActionRow: {
     position: 'absolute',
-    left: 10,
-    right: 10,
-    bottom: 10,
+    left: scale(10),
+    right: scale(10),
+    bottom: scale(10),
     flexDirection: 'row',
-    gap: 8,
+    gap: scale(8),
+    zIndex: 10,
+    elevation: 10,
   },
   cameraCancelBtn: {
     flex: 1,
@@ -656,5 +723,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  error: { marginTop: scale(8), color: '#E05B67', fontSize: scale(13), fontWeight: '600' },
+  error: {
+    marginTop: scale(8),
+    color: '#E05B67',
+    fontSize: scale(12),
+    fontWeight: '600',
+    textAlign: 'left',
+    width: '100%',
+  },
 });

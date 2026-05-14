@@ -3,7 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { saveHeightResult } from '../services/storageService';
 import { HeightResultSummary } from '../types/measurement';
-import { scale } from '../theme/ui';
+import { scale, ui } from '../theme/ui';
 
 type ResultScreenProps = {
   result: HeightResultSummary;
@@ -103,22 +103,39 @@ export function ResultScreen({ result, onBack, onSaved }: ResultScreenProps) {
 
 const styles = StyleSheet.create({
   page: { flex: 1 },
-  headerArea: { minHeight: scale(104), paddingHorizontal: 0, paddingTop: scale(16), justifyContent: 'center' },
+  headerArea: {
+    minHeight: ui.header.minHeight,
+    paddingHorizontal: 0,
+    paddingTop: ui.header.paddingTop,
+    paddingBottom: ui.header.paddingBottom,
+    justifyContent: 'center',
+  },
   content: { padding: scale(16), paddingBottom: scale(24) },
-  headerBlock: { borderRadius: 0, paddingHorizontal: scale(14), paddingVertical: scale(12) },
+  headerBlock: {
+    borderRadius: 0,
+    paddingHorizontal: ui.header.paddingHorizontal,
+    paddingVertical: ui.header.paddingBottom,
+  },
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   iconBtn: {
-    width: scale(30),
-    height: scale(30),
-    borderRadius: scale(10),
+    width: ui.header.iconSize,
+    height: ui.header.iconSize,
+    borderRadius: ui.header.iconRadius,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.55)',
     backgroundColor: 'rgba(255,255,255,0.25)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconText: { color: '#FFFFFF', fontWeight: '800' },
-  title: { color: '#FFFFFF', fontSize: scale(30), fontWeight: '800' },
+  iconText: { color: '#FFFFFF', fontWeight: '800', fontSize: scale(14) },
+  title: {
+    flex: 1,
+    textAlign: 'center',
+    color: '#FFFFFF',
+    fontSize: ui.header.titleFontSize,
+    lineHeight: ui.header.titleLineHeight,
+    fontWeight: '800',
+  },
   donePill: {
     marginTop: scale(18),
     alignSelf: 'center',

@@ -1,21 +1,25 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   GestureResponderEvent,
   Image,
   LayoutChangeEvent,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  type TextStyle,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { estimateHeight } from '../services/measurementService';
 import { HeightMeasurementResult, HeightResultSummary } from '../types/measurement';
 import { cmToFeetAndInches } from '../utils/unit';
-import { scale } from '../theme/ui';
+import { useResponsiveContentMetrics } from '../hooks/useMeasureScreenMetrics';
+import { takePictureWithAndroidFallbacks, formatAndroidCameraError } from '../utils/cameraCapture';
+import { scale, ui } from '../theme/ui';
 
 function toNumber(value: string): number {
   return Number(value.trim());
@@ -96,23 +100,45 @@ type FieldProps = {
   placeholder: string;
   unit: string;
   onChangeText: (value: string) => void;
+  labelFontSize?: number;
+  inputFontSize?: number;
+  rowHeight?: number;
 };
 
-function MeasureField({ label, value, placeholder, unit, onChangeText }: FieldProps) {
+function MeasureField({
+  label,
+  value,
+  placeholder,
+  unit,
+  onChangeText,
+  labelFontSize,
+  inputFontSize,
+  rowHeight,
+}: FieldProps) {
+  const labelStyle: TextStyle | undefined = labelFontSize != null ? { fontSize: labelFontSize } : undefined;
+  const inputStyle: TextStyle[] = [styles.fieldInput];
+  if (inputFontSize != null) inputStyle.push({ fontSize: inputFontSize });
   return (
     <View style={styles.fieldWrap}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={styles.fieldInputWrap}>
+      <Text style={[styles.fieldLabel, labelStyle]}>{label}</Text>
+      <View style={[styles.fieldInputWrap, rowHeight != null ? { height: rowHeight } : null]}>
         <TextInput
           value={value}
           placeholder={placeholder}
           placeholderTextColor="#64748B"
           onChangeText={onChangeText}
           keyboardType="numeric"
-          style={styles.fieldInput}
+          style={inputStyle}
         />
         <View style={styles.unitChip}>
-          <Text style={styles.unitChipText}>{unit}</Text>
+          <Text
+            style={[
+              styles.unitChipText,
+              inputFontSize != null ? { fontSize: Math.max(8, inputFontSize - 2) } : undefined,
+            ]}
+          >
+            {unit}
+          </Text>
         </View>
       </View>
     </View>
@@ -126,6 +152,7 @@ type HomeScreenProps = {
 };
 
 export function HomeScreen({ onResultReady, onOpenNoReferenceAR, onOpenNoReferenceManual }: HomeScreenProps) {
+  const metrics = useResponsiveContentMetrics();
   const cameraRef = useRef<CameraView | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -218,16 +245,23 @@ export function HomeScreen({ onResultReady, onOpenNoReferenceAR, onOpenNoReferen
     setError(null);
   };
 
+  useEffect(() => {
+    if (!isCameraOpen) return;
+    const t = setTimeout(() => setIsCameraReady(true), 1200);
+    return () => clearTimeout(t);
+  }, [isCameraOpen]);
+
   const handleCaptureFromCamera = async () => {
     if (!isCameraReady) {
       setError('Camera is still loading. Please wait a moment.');
       return;
     }
     try {
-      const capture = await cameraRef.current?.takePictureAsync({ quality: 1 });
-      if (!capture?.uri || !capture.width || !capture.height) {
+      if (!cameraRef.current) {
+        setError('Camera is not ready yet. Please try again.');
         return;
       }
+      const capture = await takePictureWithAndroidFallbacks(cameraRef.current);
       const { uri, width, height } = capture;
       setCapturedImageUri(uri);
       setCapturedImageSize(`${width} x ${height} px`);
@@ -249,8 +283,15 @@ export function HomeScreen({ onResultReady, onOpenNoReferenceAR, onOpenNoReferen
       setEditedHeightError(null);
       setError(null);
       setIsCameraOpen(false);
-    } catch {
-      setError('Could not capture image. Please try again.');
+    } catch (e) {
+      if (__DEV__) {
+        console.warn('[HomeScreen] capture', e);
+      }
+      setError(
+        Platform.OS === 'android'
+          ? `Camera capture failed\n\n${formatAndroidCameraError(e)}`
+          : 'Could not capture image. Please try again.',
+      );
     }
   };
 
@@ -393,28 +434,42 @@ export function HomeScreen({ onResultReady, onOpenNoReferenceAR, onOpenNoReferen
   const finalHeightFeet =
     Number.isFinite(editedHeightNumber) && editedHeightNumber > 0 ? cmToFeetAndInches(editedHeightNumber) : '';
 
-  return (
-    <LinearGradient colors={['#6D63FF', '#20C7F3']} style={styles.page}>
-      <LinearGradient colors={['#6D63FF', '#20C7F3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.headerArea}>
-        <View style={styles.topRow}>
-          <View style={styles.topIcon}>
-            <Text style={styles.topIconText}>{'‹'}</Text>
-          </View>
-          <Text style={styles.topTitle}>Measure Height</Text>
-          <View style={styles.topIcon}>
-            <Text style={styles.topIconText}>?</Text>
-          </View>
-        </View>
-      </LinearGradient>
-
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.bodyArea}>
+  const measureBody = (
+        <View
+          style={[
+            styles.bodyArea,
+            {
+              paddingHorizontal: metrics.horizontalPadding,
+              maxWidth: metrics.contentMaxWidth,
+              width: '100%',
+              alignSelf: 'center',
+            },
+          ]}
+        >
           <View style={styles.deviceCard}>
           <View style={styles.meterWrap}>
-            <View style={styles.meterOuter}>
-              <View style={styles.meterInner}>
-                <Text style={styles.meterValue}>{result ? result.estimatedHeightCm : '--'}</Text>
-                <Text style={styles.meterUnit}>CM</Text>
+            <View
+              style={[
+                styles.meterOuter,
+                {
+                  width: metrics.meterOuter,
+                  height: metrics.meterOuter,
+                  borderRadius: metrics.meterOuter / 2,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.meterInner,
+                  {
+                    width: metrics.meterInner,
+                    height: metrics.meterInner,
+                    borderRadius: metrics.meterInner / 2,
+                  },
+                ]}
+              >
+                <Text style={[styles.meterValue, { fontSize: metrics.meterValueFont }]}>{result ? result.estimatedHeightCm : '--'}</Text>
+                <Text style={[styles.meterUnit, { fontSize: metrics.meterUnitFont }]}>CM</Text>
               </View>
             </View>
             <LinearGradient
@@ -426,30 +481,31 @@ export function HomeScreen({ onResultReady, onOpenNoReferenceAR, onOpenNoReferen
               <View style={styles.awaitingDot} />
               <Text style={styles.awaitingTitle}>{result ? 'Height Estimated' : 'Awaiting Input'}</Text>
             </LinearGradient>
-            <Text style={styles.awaitingHint}>
+            <Text style={[styles.awaitingHint, { fontSize: metrics.hintFont }]}>
               Keep person + ref at <Text style={styles.awaitingHintAccent}>same distance</Text>
             </Text>
           </View>
 
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
-              <Text style={styles.statLabel}>PERSON PX</Text>
-              <Text style={styles.statValue}>{personPixelHeight || '0'}</Text>
+              <Text style={[styles.statLabel, { fontSize: metrics.statLabelFont }]}>PERSON PX</Text>
+              <Text style={[styles.statValue, { fontSize: metrics.statValueFont }]}>{personPixelHeight || '0'}</Text>
               <Text style={styles.statSub}>pixels tall</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statLabel}>REF PX</Text>
-              <Text style={styles.statValue}>{referencePixelHeight || '0'}</Text>
+              <Text style={[styles.statLabel, { fontSize: metrics.statLabelFont }]}>REF PX</Text>
+              <Text style={[styles.statValue, { fontSize: metrics.statValueFont }]}>{referencePixelHeight || '0'}</Text>
               <Text style={styles.statSub}>pixels tall</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statLabel}>REF REAL</Text>
-              <Text style={styles.statValue}>{referenceRealHeightCm || '0'}</Text>
+              <Text style={[styles.statLabel, { fontSize: metrics.statLabelFont }]}>REF REAL</Text>
+              <Text style={[styles.statValue, { fontSize: metrics.statValueFont }]}>{referenceRealHeightCm || '0'}</Text>
               <Text style={styles.statSub}>cm</Text>
             </View>
           </View>
 
           <View style={styles.wizardCard}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.wizardRowScroll}>
             <View style={styles.wizardRow}>
               {wizardSteps.map((step, index) => {
                 const active = wizardStage === step.key;
@@ -478,18 +534,15 @@ export function HomeScreen({ onResultReady, onOpenNoReferenceAR, onOpenNoReferen
                 );
               })}
             </View>
-            <Text style={styles.wizardHint}>
-              {wizardStage === 'capture' && 'Step 1: Open camera and capture one full-body photo.'}
+            </ScrollView>
+            <Text style={[styles.wizardHint, { fontSize: metrics.hintFont }]}>
+              {wizardStage === 'capture' && 'Open camera and capture a full-body photo.'}
               {wizardStage === 'markPerson' &&
-                (isAdjustingPoints
-                  ? 'Step 2: Tap top and bottom of the person in the photo.'
-                  : 'Step 2: Use Auto Detect, or press Adjust Points to start manual marking.')}
+                (isAdjustingPoints ? 'Tap top and bottom of the person.' : 'Auto Detect or Adjust Points to place markers.')}
               {wizardStage === 'markReference' &&
-                (isAdjustingPoints
-                  ? 'Step 3: Tap top and bottom of the reference object.'
-                  : 'Step 3: Use Auto Detect, or press Adjust Points to start manual marking.')}
-              {wizardStage === 'input' && 'Step 4: Enter reference object real height in cm.'}
-              {wizardStage === 'result' && 'Step 5: Result is ready. You can adjust or re-measure.'}
+                (isAdjustingPoints ? 'Tap top and bottom of the reference.' : 'Auto Detect or Adjust Points to place markers.')}
+              {wizardStage === 'input' && 'Enter the reference object’s real height (cm).'}
+              {wizardStage === 'result' && 'Result ready — adjust below or re-measure.'}
             </Text>
           </View>
 
@@ -501,6 +554,9 @@ export function HomeScreen({ onResultReady, onOpenNoReferenceAR, onOpenNoReferen
                 placeholder="e.g. 170"
                 unit="cm"
                 onChangeText={setReferenceRealHeightCm}
+                labelFontSize={metrics.scaleW(10)}
+                inputFontSize={metrics.scaleW(14)}
+                rowHeight={metrics.fieldHeight}
               />
               <MeasureField
                 label="PERSON PIXEL HEIGHT (OPTIONAL EDIT)"
@@ -508,6 +564,9 @@ export function HomeScreen({ onResultReady, onOpenNoReferenceAR, onOpenNoReferen
                 placeholder="e.g. 620"
                 unit="px"
                 onChangeText={setPersonPixelHeight}
+                labelFontSize={metrics.scaleW(10)}
+                inputFontSize={metrics.scaleW(14)}
+                rowHeight={metrics.fieldHeight}
               />
               <MeasureField
                 label="REFERENCE PIXEL HEIGHT (OPTIONAL EDIT)"
@@ -515,18 +574,32 @@ export function HomeScreen({ onResultReady, onOpenNoReferenceAR, onOpenNoReferen
                 placeholder="e.g. 310"
                 unit="px"
                 onChangeText={setReferencePixelHeight}
+                labelFontSize={metrics.scaleW(10)}
+                inputFontSize={metrics.scaleW(14)}
+                rowHeight={metrics.fieldHeight}
               />
             </>
           )}
 
           {isCameraOpen ? (
-            <View style={styles.cameraWrap}>
-              <CameraView ref={cameraRef} style={styles.cameraPreview} facing="back" onCameraReady={() => setIsCameraReady(true)} />
+            <View style={styles.cameraWrap} {...(Platform.OS === 'android' ? { collapsable: false } : {})}>
+              <CameraView
+                ref={cameraRef}
+                style={[
+                  styles.cameraPreview,
+                  {
+                    height: metrics.cameraPreviewMaxHeight,
+                    maxHeight: metrics.cameraPreviewMaxHeight,
+                  },
+                ]}
+                facing="back"
+                onCameraReady={() => setIsCameraReady(true)}
+              />
               <View style={styles.cameraOverlay} pointerEvents="none">
                 <Text style={styles.cameraGuideTitle}>Live Capture Guide</Text>
                 <Text style={styles.cameraGuideText}>Keep person and reference fully visible in same plane.</Text>
                 <View style={styles.cameraGuideBadge}>
-                  <Text style={styles.cameraGuideBadgeText}>Best distance: 1.8m - 3.0m</Text>
+                  <Text style={styles.cameraGuideBadgeText}>Best distance: 1.8m – 3.0m</Text>
                 </View>
               </View>
               <View style={styles.cameraActionRow}>
@@ -539,7 +612,7 @@ export function HomeScreen({ onResultReady, onOpenNoReferenceAR, onOpenNoReferen
               </View>
             </View>
           ) : capturedImageUri ? (
-            <View style={styles.previewBox}>
+            <View style={[styles.previewBox, { maxHeight: metrics.previewBoxMaxHeight }]}>
               <View style={styles.previewHead}>
                 <Text style={styles.previewLabel}>Tap points on photo</Text>
                 <Text style={styles.previewStep}>
@@ -558,6 +631,7 @@ export function HomeScreen({ onResultReady, onOpenNoReferenceAR, onOpenNoReferen
                 onPress={handleImagePress}
                 style={[
                   styles.imageTouchArea,
+                  { maxHeight: metrics.previewMaxHeight },
                   (!isImageReady ||
                     (wizardStage !== 'markPerson' && wizardStage !== 'markReference') ||
                     !isAdjustingPoints) &&
@@ -573,11 +647,12 @@ export function HomeScreen({ onResultReady, onOpenNoReferenceAR, onOpenNoReferen
                   source={{ uri: capturedImageUri }}
                   style={[
                     styles.previewImage,
+                    { maxHeight: metrics.previewMaxHeight },
                     capturedImageWidth && capturedImageHeight
                       ? { aspectRatio: capturedImageWidth / capturedImageHeight }
                       : null,
                   ]}
-                  resizeMode="stretch"
+                  resizeMode="contain"
                   onLayout={handleImageLayout}
                 />
                 {displayedImageWidth > 0 && displayedImageHeight > 0 ? (
@@ -615,21 +690,30 @@ export function HomeScreen({ onResultReady, onOpenNoReferenceAR, onOpenNoReferen
           <View style={styles.actionRow}>
             {wizardStage === 'capture' ? (
               <>
-                <Pressable style={styles.cameraButtonFull} onPress={handleStartCamera}>
+                <Pressable
+                  style={[styles.cameraButtonFull, { minHeight: metrics.buttonHeight }]}
+                  onPress={handleStartCamera}
+                >
                   <LinearGradient
                     colors={['#6D63FF', '#20C7F3']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={styles.cameraButtonFullGradient}
                   >
-                    <Text style={styles.cameraButtonPrimaryText}>Open Camera</Text>
+                    <Text style={[styles.cameraButtonPrimaryText, { fontSize: metrics.scaleW(14) }]}>Open Camera</Text>
                   </LinearGradient>
                 </Pressable>
-                <Pressable style={styles.modeSwitchButton} onPress={onOpenNoReferenceAR}>
-                  <Text style={styles.modeSwitchText}>No-Reference (ARCore)</Text>
+                <Pressable
+                  style={[styles.modeSwitchButton, { minHeight: metrics.buttonHeight - 2 }]}
+                  onPress={onOpenNoReferenceAR}
+                >
+                  <Text style={[styles.modeSwitchText, { fontSize: metrics.scaleW(12) }]}>No-Reference (ARCore)</Text>
                 </Pressable>
-                <Pressable style={styles.modeSwitchButtonAlt} onPress={onOpenNoReferenceManual}>
-                  <Text style={styles.modeSwitchTextAlt}>No-Reference (Manual)</Text>
+                <Pressable
+                  style={[styles.modeSwitchButtonAlt, { minHeight: metrics.buttonHeight - 2 }]}
+                  onPress={onOpenNoReferenceManual}
+                >
+                  <Text style={[styles.modeSwitchTextAlt, { fontSize: metrics.scaleW(12) }]}>No-Reference (Manual)</Text>
                 </Pressable>
                 <View style={styles.modeInfoCard}>
                   <View style={styles.modeInfoRow}>
@@ -642,24 +726,36 @@ export function HomeScreen({ onResultReady, onOpenNoReferenceAR, onOpenNoReferen
               </>
             ) : (
               <>
-                <Pressable style={styles.cameraButton} onPress={handleResetMeasurement}>
-                  <Text style={styles.cameraButtonText}>Retake</Text>
+                <Pressable
+                  style={[styles.cameraButton, { minHeight: metrics.buttonHeight }]}
+                  onPress={handleResetMeasurement}
+                >
+                  <Text style={[styles.cameraButtonText, { fontSize: metrics.scaleW(12) }]}>Retake</Text>
                 </Pressable>
-                <Pressable style={styles.cameraButton} onPress={isAdjustingPoints ? () => setIsAdjustingPoints(false) : handleAdjustPoints}>
-                  <Text style={styles.cameraButtonText}>{isAdjustingPoints ? 'Stop Adjust' : 'Adjust Points'}</Text>
+                <Pressable
+                  style={[styles.cameraButton, { minHeight: metrics.buttonHeight }]}
+                  onPress={isAdjustingPoints ? () => setIsAdjustingPoints(false) : handleAdjustPoints}
+                >
+                  <Text style={[styles.cameraButtonText, { fontSize: metrics.scaleW(12) }]}>
+                    {isAdjustingPoints ? 'Stop Adjust' : 'Adjust Points'}
+                  </Text>
                 </Pressable>
-                <Pressable style={styles.cameraButton} onPress={handleAutoDetectPoints}>
-                  <Text style={styles.cameraButtonText}>Auto Detect</Text>
+                <Pressable
+                  style={[styles.cameraButton, { minHeight: metrics.buttonHeight }]}
+                  onPress={handleAutoDetectPoints}
+                >
+                  <Text style={[styles.cameraButtonText, { fontSize: metrics.scaleW(12) }]}>Auto Detect</Text>
                 </Pressable>
                 <Pressable
                   style={[
                     styles.estimateButton,
+                    { minHeight: metrics.buttonHeight },
                     (wizardStage !== 'input' || !isFormFilled) && styles.buttonDisabled,
                   ]}
                   onPress={handleEstimate}
                   disabled={wizardStage !== 'input' || !isFormFilled}
                 >
-                  <Text style={styles.estimateButtonText}>
+                  <Text style={[styles.estimateButtonText, { fontSize: metrics.scaleW(13) }]}>
                     {wizardStage === 'result' ? 'Estimated' : 'Estimate Height'}
                   </Text>
                 </Pressable>
@@ -680,7 +776,10 @@ export function HomeScreen({ onResultReady, onOpenNoReferenceAR, onOpenNoReferen
                 placeholder="Adjust final height"
                 placeholderTextColor="#64748B"
                 keyboardType="numeric"
-                style={styles.editInput}
+                style={[
+                  styles.editInput,
+                  { height: metrics.fieldHeight, fontSize: metrics.scaleW(14) },
+                ]}
               />
               {editedHeightError ? <Text style={styles.errorText}>{editedHeightError}</Text> : null}
               {finalHeightFeet ? <Text style={styles.editedMeta}>{finalHeightFeet}</Text> : null}
@@ -688,184 +787,211 @@ export function HomeScreen({ onResultReady, onOpenNoReferenceAR, onOpenNoReferen
           ) : null}
           </View>
         </View>
+  );
+
+  return (
+    <View style={styles.page}>
+      <LinearGradient colors={['#6D63FF', '#20C7F3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.headerArea}>
+        <View style={styles.topRow}>
+          <View style={styles.headerSpacer} />
+          <Text style={styles.topTitle}>Measure Height</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+      </LinearGradient>
+
+      <ScrollView
+        style={styles.bodyScroll}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingBottom: metrics.bodyBottomPad,
+            minHeight: metrics.scrollContentMinHeight,
+          },
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={metrics.height < 720}
+        bounces
+      >
+        {measureBody}
       </ScrollView>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   page: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
   },
-  content: {
-    paddingBottom: 28,
+  bodyScroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    width: '100%',
   },
   headerArea: {
-    minHeight: 104,
+    minHeight: ui.header.minHeight,
     paddingHorizontal: 0,
-    paddingTop: 16,
+    paddingTop: ui.header.paddingTop,
+    paddingBottom: ui.header.paddingBottom,
     justifyContent: 'center',
   },
   bodyArea: {
-    marginTop: -2,
-    borderTopLeftRadius: scale(38),
-    borderTopRightRadius: scale(38),
-    backgroundColor: '#EAF1F7',
-    paddingHorizontal: '4%',
-    paddingTop: 12,
-    minHeight: 680,
+    backgroundColor: '#FFFFFF',
+    paddingTop: scale(8),
   },
   deviceCard: {
     width: '100%',
-    maxWidth: 760,
     alignSelf: 'center',
-    backgroundColor: 'transparent',
-    borderRadius: scale(24),
+    backgroundColor: '#FFFFFF',
+    borderRadius: 0,
     borderWidth: 0,
-    padding: 10,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    flexGrow: 1,
   },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: ui.header.paddingHorizontal,
   },
-  topIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.55)',
-  },
-  topIconText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
+  headerSpacer: {
+    width: ui.header.iconSize,
+    height: ui.header.iconSize,
   },
   topTitle: {
+    flex: 1,
+    textAlign: 'center',
     color: '#FFFFFF',
-    fontSize: 30,
+    fontSize: ui.header.titleFontSize,
     fontWeight: '800',
-    lineHeight: 34,
+    lineHeight: ui.header.titleLineHeight,
   },
   meterWrap: {
-    marginTop: 16,
+    marginTop: scale(6),
     alignItems: 'center',
   },
   meterOuter: {
-    width: scale(150),
-    height: scale(150),
-    borderRadius: scale(75),
-    borderWidth: 1.5,
-    borderColor: 'rgba(93, 108, 255, 0.18)',
+    width: scale(100),
+    height: scale(100),
+    borderRadius: scale(50),
+    borderWidth: 1,
+    borderColor: ui.colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(221, 228, 247, 0.8)',
+    backgroundColor: '#FFFFFF',
   },
   meterInner: {
-    width: scale(138),
-    height: scale(138),
-    borderRadius: scale(69),
+    width: scale(90),
+    height: scale(90),
+    borderRadius: scale(45),
     borderWidth: 1,
-    borderColor: 'rgba(93, 108, 255, 0.15)',
+    borderColor: 'rgba(93, 108, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#FAFBFF',
   },
   meterValue: {
     color: '#1F2A44',
-    fontSize: scale(32),
-    fontWeight: '900',
+    fontSize: scale(22),
+    fontWeight: '800',
   },
   meterUnit: {
     color: '#6D63FF',
-    fontSize: 13,
+    fontSize: scale(11),
     fontWeight: '700',
   },
   awaitingTitle: {
     color: '#FFFFFF',
-    fontSize: scale(31),
-    fontWeight: '800',
+    fontSize: scale(13),
+    fontWeight: '700',
   },
   awaitingBadge: {
-    marginTop: 12,
+    marginTop: scale(8),
     borderRadius: 999,
-    paddingHorizontal: 13,
-    paddingVertical: 7,
+    paddingHorizontal: scale(10),
+    paddingVertical: scale(5),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: scale(6),
   },
   awaitingDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: scale(7),
+    height: scale(7),
+    borderRadius: scale(4),
     backgroundColor: '#B8E72A',
   },
   awaitingHint: {
-    marginTop: 4,
-    color: '#6B7896',
-    fontSize: 12,
+    marginTop: scale(4),
+    color: ui.colors.textMuted,
+    fontSize: scale(11),
     fontWeight: '600',
+    textAlign: 'center',
   },
   awaitingHintAccent: {
     color: '#6D63FF',
     fontWeight: '800',
   },
   statsRow: {
-    marginTop: scale(14),
+    marginTop: scale(10),
     flexDirection: 'row',
-    gap: 8,
+    gap: scale(6),
   },
   statCard: {
     flex: 1,
-    padding: 8,
-    borderRadius: 12,
+    paddingVertical: scale(6),
+    paddingHorizontal: scale(6),
+    borderRadius: scale(10),
     borderWidth: 1,
-    borderColor: 'rgba(125, 145, 191, 0.25)',
+    borderColor: ui.colors.border,
     backgroundColor: '#FFFFFF',
   },
   statLabel: {
-    color: '#8E98B1',
-    fontSize: 9,
+    color: ui.colors.textMuted,
+    fontSize: scale(9),
     fontWeight: '700',
   },
   statValue: {
-    marginTop: 4,
+    marginTop: scale(2),
     color: '#1F2A44',
-    fontSize: 22,
+    fontSize: scale(15),
     fontWeight: '800',
   },
   statSub: {
-    color: '#9BA5BC',
-    fontSize: 10,
+    color: ui.colors.textSoft,
+    fontSize: scale(9),
   },
   fieldWrap: {
-    marginTop: 12,
+    marginTop: scale(8),
   },
   wizardCard: {
-    marginTop: scale(12),
-    padding: scale(10),
-    borderRadius: 12,
+    marginTop: scale(8),
+    padding: scale(8),
+    borderRadius: scale(10),
     borderWidth: 1,
-    borderColor: 'rgba(125, 145, 191, 0.25)',
+    borderColor: ui.colors.border,
     backgroundColor: '#FFFFFF',
+  },
+  wizardRowScroll: {
+    flexGrow: 1,
+    alignItems: 'center',
+    paddingRight: scale(4),
   },
   wizardRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    flexWrap: 'nowrap',
+    gap: scale(4),
   },
   wizardItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: scale(4),
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: '#EEF2FC',
+    paddingHorizontal: scale(6),
+    paddingVertical: scale(4),
+    backgroundColor: '#F4F6FB',
   },
   wizardItemActive: {
     backgroundColor: 'transparent',
@@ -874,10 +1000,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#EAF7F1',
   },
   wizardDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#475569',
+    width: scale(6),
+    height: scale(6),
+    borderRadius: scale(3),
+    backgroundColor: '#64748B',
   },
   wizardDotActive: {
     backgroundColor: '#22D3EE',
@@ -886,8 +1012,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#10B981',
   },
   wizardText: {
-    color: '#8E98B1',
-    fontSize: 11,
+    color: ui.colors.textMuted,
+    fontSize: scale(9),
     fontWeight: '700',
   },
   wizardTextActive: {
@@ -901,33 +1027,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#B8E72A',
   },
   wizardHint: {
-    marginTop: 7,
+    marginTop: scale(6),
     color: '#4A5A7A',
-    fontSize: 12,
+    fontSize: scale(11),
     fontWeight: '600',
+    lineHeight: scale(15),
   },
   fieldLabel: {
-    color: '#8E98B1',
-    fontSize: 11,
+    color: ui.colors.textMuted,
+    fontSize: scale(10),
     fontWeight: '800',
-    letterSpacing: 0.5,
-    marginBottom: 6,
+    letterSpacing: 0.3,
+    marginBottom: scale(4),
   },
   fieldInputWrap: {
-    height: 50,
-    borderRadius: 12,
+    height: scale(40),
+    borderRadius: scale(10),
     borderWidth: 1,
     borderColor: 'rgba(53, 189, 244, 0.35)',
-    backgroundColor: '#F2F5FD',
+    backgroundColor: '#FAFBFF',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: scale(10),
   },
   fieldInput: {
     flex: 1,
     color: '#1F2A44',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: scale(14),
+    fontWeight: '600',
   },
   unitChip: {
     borderRadius: 8,
@@ -941,29 +1068,34 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   previewBox: {
-    marginTop: scale(12),
-    padding: scale(9),
-    borderRadius: 12,
+    marginTop: scale(8),
+    padding: scale(8),
+    borderRadius: scale(10),
     borderWidth: 1,
-    borderColor: 'rgba(125, 145, 191, 0.25)',
+    borderColor: ui.colors.border,
     backgroundColor: '#FFFFFF',
   },
   cameraWrap: {
-    marginTop: 12,
-    borderRadius: 12,
+    marginTop: scale(12),
+    borderRadius: scale(12),
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(53, 189, 244, 0.4)',
     backgroundColor: '#000000',
+    position: 'relative',
+    width: '100%',
+    alignSelf: 'stretch',
   },
   cameraPreview: {
     width: '100%',
-    aspectRatio: 3 / 4,
+    alignSelf: 'center',
   },
   cameraOverlay: {
     ...StyleSheet.absoluteFillObject,
-    padding: 10,
-    justifyContent: 'space-between',
+    padding: scale(10),
+    justifyContent: 'flex-start',
+    gap: scale(6),
+    zIndex: 1,
   },
   cameraGuideTitle: {
     color: '#FFFFFF',
@@ -977,6 +1109,7 @@ const styles = StyleSheet.create({
   },
   cameraGuideBadge: {
     alignSelf: 'flex-start',
+    marginTop: scale(4),
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -989,11 +1122,13 @@ const styles = StyleSheet.create({
   },
   cameraActionRow: {
     position: 'absolute',
-    left: 10,
-    right: 10,
-    bottom: 10,
+    left: scale(10),
+    right: scale(10),
+    bottom: scale(10),
     flexDirection: 'row',
-    gap: 8,
+    gap: scale(8),
+    zIndex: 10,
+    elevation: 10,
   },
   cameraCancelBtn: {
     flex: 1,
@@ -1048,16 +1183,18 @@ const styles = StyleSheet.create({
   },
   previewImage: {
     width: '100%',
+    maxHeight: scale(200),
     height: undefined,
-    borderRadius: 10,
+    borderRadius: scale(8),
   },
   imageTouchArea: {
     position: 'relative',
     overflow: 'hidden',
-    borderRadius: 10,
+    borderRadius: scale(8),
     borderWidth: 1,
-    borderColor: 'rgba(53, 189, 244, 0.4)',
-    backgroundColor: '#EAF1FF',
+    borderColor: 'rgba(53, 189, 244, 0.35)',
+    backgroundColor: '#FAFBFF',
+    maxHeight: scale(200),
   },
   guideLayer: {
     ...StyleSheet.absoluteFillObject,
@@ -1118,161 +1255,163 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   actionRow: {
-    marginTop: scale(12),
+    marginTop: scale(8),
     flexDirection: 'row',
-    gap: 10,
+    gap: scale(6),
     flexWrap: 'wrap',
   },
   cameraButton: {
     flex: 1,
-    height: scale(48),
-    borderRadius: 14,
+    minWidth: '30%',
+    minHeight: scale(38),
+    borderRadius: scale(10),
     borderWidth: 1,
     borderColor: 'rgba(125, 145, 191, 0.32)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EEF3FF',
+    backgroundColor: '#F4F6FB',
   },
   cameraButtonFull: {
     flex: 1,
-    height: scale(48),
-    borderRadius: 14,
+    minWidth: '100%',
+    minHeight: scale(40),
+    borderRadius: scale(10),
     overflow: 'hidden',
-    shadowColor: '#6D63FF',
-    shadowOpacity: 0.26,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 6,
   },
   cameraButtonFullGradient: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 14,
+    borderRadius: scale(10),
   },
   cameraButtonText: {
     color: '#4A5A7A',
-    fontSize: 15,
+    fontSize: scale(12),
     fontWeight: '700',
   },
   cameraButtonPrimaryText: {
     color: '#FFFFFF',
-    fontSize: 17,
+    fontSize: scale(14),
     fontWeight: '800',
-    letterSpacing: 0.2,
-    lineHeight: 21,
+    letterSpacing: 0.1,
   },
   modeSwitchButton: {
     width: '100%',
-    height: scale(44),
-    borderRadius: 12,
+    minHeight: scale(36),
+    borderRadius: scale(10),
     borderWidth: 1,
-    borderColor: 'rgba(109, 99, 255, 0.45)',
-    backgroundColor: '#EEF3FF',
+    borderColor: 'rgba(109, 99, 255, 0.35)',
+    backgroundColor: '#FAFBFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   modeSwitchText: {
     color: '#5D6CFF',
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: scale(12),
+    fontWeight: '700',
   },
   modeSwitchButtonAlt: {
     width: '100%',
-    height: scale(44),
-    borderRadius: 12,
+    minHeight: scale(36),
+    borderRadius: scale(10),
     borderWidth: 1,
-    borderColor: 'rgba(53, 189, 244, 0.45)',
+    borderColor: 'rgba(53, 189, 244, 0.35)',
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   modeSwitchTextAlt: {
     color: '#2D9FD6',
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: scale(12),
+    fontWeight: '700',
   },
   modeInfoCard: {
     width: '100%',
-    borderRadius: 12,
+    borderRadius: scale(10),
     borderWidth: 1,
-    borderColor: 'rgba(125, 145, 191, 0.25)',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    borderColor: ui.colors.border,
+    backgroundColor: '#FAFBFF',
+    paddingHorizontal: scale(8),
+    paddingVertical: scale(6),
   },
   modeInfoRow: {
-    marginTop: 2,
+    marginTop: scale(2),
   },
   modeInfoLabel: {
     color: '#2E8FCC',
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: scale(11),
+    fontWeight: '700',
   },
   modeInfoSubLabel: {
     color: '#7C89A6',
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: scale(10),
+    fontWeight: '600',
   },
   estimateButton: {
     flex: 1.7,
-    height: scale(48),
-    borderRadius: 14,
+    minWidth: '40%',
+    minHeight: scale(38),
+    borderRadius: scale(10),
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#35BDF4',
   },
   estimateButtonText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: scale(13),
     fontWeight: '800',
   },
   buttonDisabled: {
     opacity: 0.55,
   },
   errorText: {
-    marginTop: 10,
-    fontSize: 13,
-    color: '#FCA5A5',
+    marginTop: scale(6),
+    fontSize: scale(11),
+    color: '#DC2626',
+    fontWeight: '600',
+    textAlign: 'left',
+    width: '100%',
   },
   warningText: {
-    marginTop: 8,
-    fontSize: 13,
-    color: '#FCD34D',
+    marginTop: scale(4),
+    fontSize: scale(11),
+    color: '#B45309',
+    fontWeight: '600',
   },
   infoText: {
-    marginTop: 8,
-    fontSize: 12,
+    marginTop: scale(4),
+    fontSize: scale(11),
     color: '#2D9FD6',
+    fontWeight: '600',
   },
   editCard: {
-    marginTop: scale(12),
-    padding: scale(10),
-    borderRadius: 12,
+    marginTop: scale(8),
+    padding: scale(8),
+    borderRadius: scale(10),
     borderWidth: 1,
-    borderColor: 'rgba(125, 145, 191, 0.25)',
-    backgroundColor: '#FFFFFF',
+    borderColor: ui.colors.border,
+    backgroundColor: '#FAFBFF',
   },
   editCardTitle: {
     color: '#4A5A7A',
-    fontSize: 12,
+    fontSize: scale(11),
     fontWeight: '700',
-    marginBottom: 7,
+    marginBottom: scale(6),
   },
   editInput: {
-    height: 46,
+    height: scale(40),
     borderWidth: 1,
     borderColor: 'rgba(53, 189, 244, 0.4)',
-    backgroundColor: '#F2F5FD',
-    borderRadius: 12,
-    paddingHorizontal: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: scale(10),
+    paddingHorizontal: scale(10),
     color: '#1F2A44',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: scale(14),
+    fontWeight: '600',
   },
   editedMeta: {
-    marginTop: 8,
-    fontSize: 13,
+    marginTop: scale(6),
+    fontSize: scale(12),
     color: '#2D9FD6',
     fontWeight: '700',
   },

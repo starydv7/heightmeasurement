@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ViroARScene, ViroARSceneNavigator, ViroText } from '@reactvision/react-viro';
 import { HeightResultSummary } from '../types/measurement';
 import { cmToFeetAndInches } from '../utils/unit';
-import { scale } from '../theme/ui';
+import { scale, ui } from '../theme/ui';
 
 type Vec3 = [number, number, number];
 
@@ -22,9 +21,16 @@ function distanceMeters(a: Vec3, b: Vec3): number {
 }
 
 function ARHeightScene(props: { onPoint: (p: Vec3) => void; stepLabel: string }) {
+  // Lazy require to prevent app startup crashes if AR native module
+  // isn't available in a given build/device.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { ViroARScene, ViroText } = require('@reactvision/react-viro') as {
+    ViroARScene: React.ComponentType<any>;
+    ViroText: React.ComponentType<any>;
+  };
   return (
     <ViroARScene
-      onClick={(source) => {
+      onClick={(source: { position?: unknown }) => {
         const position = (source?.position ?? null) as unknown as Vec3 | null;
         if (position && position.length === 3) {
           props.onPoint(position);
@@ -42,6 +48,7 @@ function ARHeightScene(props: { onPoint: (p: Vec3) => void; stepLabel: string })
 
 export function NoReferenceARScreen({ onBack, onResultReady, onOpenManualFallback }: NoReferenceARScreenProps) {
   const [isARActive, setIsARActive] = useState(false);
+  const [isARAvailable, setIsARAvailable] = useState<boolean | null>(null);
   const [footPoint, setFootPoint] = useState<Vec3 | null>(null);
   const [headPoint, setHeadPoint] = useState<Vec3 | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -92,8 +99,8 @@ export function NoReferenceARScreen({ onBack, onResultReady, onOpenManualFallbac
         <Pressable onPress={onBack} style={styles.backBtn}>
           <Text style={styles.backBtnText}>{'‹'}</Text>
         </Pressable>
-        <Text style={styles.title}>No-Reference (AR)</Text>
-        <View style={styles.backBtn} />
+        <Text style={styles.title}>No reference (AR)</Text>
+        <View style={styles.headerSpacer} />
       </View>
 
       <View style={styles.body}>
@@ -108,7 +115,22 @@ export function NoReferenceARScreen({ onBack, onResultReady, onOpenManualFallbac
             <Text style={styles.cardSub}>
               If your device supports ARCore, start AR and tap feet + head points to measure height.
             </Text>
-            <Pressable style={styles.primaryBtn} onPress={() => { setIsARActive(true); setError(null); }}>
+            <Pressable
+              style={styles.primaryBtn}
+              onPress={() => {
+                setError(null);
+                try {
+                  // If native module isn't present, this will throw.
+                  // eslint-disable-next-line @typescript-eslint/no-var-requires
+                  require('@reactvision/react-viro');
+                  setIsARAvailable(true);
+                  setIsARActive(true);
+                } catch {
+                  setIsARAvailable(false);
+                  setError('AR module is not available in this build/device. Use manual mode.');
+                }
+              }}
+            >
               <LinearGradient colors={['#6D63FF', '#20C7F3']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryBtnGradient}>
                 <Text style={styles.primaryBtnText}>Start AR Measurement</Text>
               </LinearGradient>
@@ -124,8 +146,35 @@ export function NoReferenceARScreen({ onBack, onResultReady, onOpenManualFallbac
               <Text style={styles.secondaryBtnText}>Manual no-reference fallback</Text>
             </Pressable>
           </View>
+        ) : isARAvailable === false ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>AR not available</Text>
+            <Text style={styles.cardSub}>This device/build can’t run AR measurement. Use manual or reference mode.</Text>
+            <Pressable style={styles.secondaryBtn} onPress={onOpenManualFallback}>
+              <Text style={styles.secondaryBtnText}>Open manual mode</Text>
+            </Pressable>
+          </View>
         ) : (
           <View style={styles.arWrap}>
+            {/* Lazy require AR navigator only when needed */}
+            {(() => {
+              // eslint-disable-next-line @typescript-eslint/no-var-requires
+              let ViroARSceneNavigator: React.ComponentType<any> | null = null;
+              try {
+                // eslint-disable-next-line @typescript-eslint/no-var-requires
+                ViroARSceneNavigator = (require('@reactvision/react-viro') as { ViroARSceneNavigator: React.ComponentType<any> }).ViroARSceneNavigator;
+              } catch {
+                ViroARSceneNavigator = null;
+              }
+              if (!ViroARSceneNavigator) {
+                return (
+                  <View style={styles.card}>
+                    <Text style={styles.cardTitle}>AR failed to load</Text>
+                    <Text style={styles.cardSub}>Use manual mode instead.</Text>
+                  </View>
+                );
+              }
+              return (
             <ViroARSceneNavigator
               autofocus
               initialScene={{
@@ -133,6 +182,8 @@ export function NoReferenceARScreen({ onBack, onResultReady, onOpenManualFallbac
               }}
               style={styles.arView}
             />
+              );
+            })()}
 
             <View style={styles.arControls}>
               <Pressable style={styles.secondaryBtn} onPress={() => { setFootPoint(null); setHeadPoint(null); setError(null); }}>
@@ -154,19 +205,18 @@ export function NoReferenceARScreen({ onBack, onResultReady, onOpenManualFallbac
 const styles = StyleSheet.create({
   page: { flex: 1 },
   header: {
-    minHeight: scale(104),
-    paddingHorizontal: 0,
-    paddingTop: scale(16),
+    minHeight: ui.header.minHeight,
+    paddingHorizontal: ui.header.paddingHorizontal,
+    paddingTop: ui.header.paddingTop,
+    paddingBottom: ui.header.paddingBottom,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingLeft: scale(16),
-    paddingRight: scale(16),
   },
   backBtn: {
-    width: scale(30),
-    height: scale(30),
-    borderRadius: scale(10),
+    width: ui.header.iconSize,
+    height: ui.header.iconSize,
+    borderRadius: ui.header.iconRadius,
     backgroundColor: 'rgba(255,255,255,0.25)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.5)',
@@ -174,12 +224,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   backBtnText: { color: '#FFFFFF', fontSize: scale(16), fontWeight: '800' },
-  title: { color: '#FFFFFF', fontSize: scale(30), fontWeight: '800' },
+  headerSpacer: {
+    width: ui.header.iconSize,
+    height: ui.header.iconSize,
+  },
+  title: {
+    flex: 1,
+    textAlign: 'center',
+    color: '#FFFFFF',
+    fontSize: ui.header.titleFontSize,
+    lineHeight: ui.header.titleLineHeight,
+    fontWeight: '800',
+  },
   body: {
     flex: 1,
-    marginTop: -2,
-    borderTopLeftRadius: scale(38),
-    borderTopRightRadius: scale(38),
+    marginTop: 0,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     backgroundColor: '#EAF1F7',
     paddingHorizontal: scale(16),
     paddingTop: scale(12),

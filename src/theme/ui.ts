@@ -36,4 +36,16 @@ export const ui = {
     control: scale(12),
     button: scale(14),
   },
+  /** Slim app headers — use everywhere for consistent typography */
+  header: {
+    minHeight: scale(52),
+    paddingTop: scale(8),
+    paddingBottom: scale(8),
+    paddingHorizontal: scale(16),
+    titleFontSize: scale(20),
+    titleLineHeight: scale(24),
+    subtitleFontSize: scale(13),
+    iconSize: scale(28),
+    iconRadius: scale(9),
+  },
 } as const;
